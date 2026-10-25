@@ -1,0 +1,349 @@
+import { useEffect, useRef, useState } from 'react';
+import SiteStage from '../components/SiteStage.jsx';
+import { POSES, ROTATE_STEP, figureSize } from '../figure.js';
+import { Painter, hexToRgb } from '../painter.js';
+import { api } from '../api.js';
+import { addMyId } from '../myChameleons.js';
+
+const TOOLS = [
+  { key: 'move', label: '✋ 移動', hint: 'ドラッグで移動（矢印キーで1pxずつ）' },
+  { key: 'pen', label: '🖊 ペン', hint: '重ねて塗るほど少し暗く・鮮やかになります' },
+  { key: 'eraser', label: '🩹 消しゴム', hint: '白に戻します' },
+];
+
+const ZOOMS = [1, 1.5, 2, 3, 4];
+const MAX_DECOYS = 3;
+const hasEyeDropper = typeof window !== 'undefined' && 'EyeDropper' in window;
+
+const MAIN = 'main';
+const figLabel = (f, figs) =>
+  f.decoy ? `デコイ${figs.filter((g) => g.decoy).indexOf(f) + 1}` : '本体';
+
+export default function Hide({ siteId }) {
+  const stageRef = useRef(null);
+  const canvasRefs = useRef({});
+  const painters = useRef({});
+  const dragRef = useRef(null);
+  const nextKey = useRef(1);
+
+  // 本体とデコイ。どれも { key, decoy, x, y, pose, rotation }
+  const [figs, setFigs] = useState([]);
+  const [activeKey, setActiveKey] = useState(MAIN);
+  const [tool, setTool] = useState('move');
+  const [color, setColor] = useState('#9aa8b8');
+  const [size, setSize] = useState(6);
+  const [zoom, setZoom] = useState(1);
+  const [outline, setOutline] = useState(true);
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [savedId, setSavedId] = useState(null);
+  const [error, setError] = useState('');
+
+  const active = figs.find((f) => f.key === activeKey);
+  const decoyCount = figs.filter((f) => f.decoy).length;
+
+  const updateFig = (key, patch) =>
+    setFigs((fs) => fs.map((f) => (f.key === key ? { ...f, ...(typeof patch === 'function' ? patch(f) : patch) } : f)));
+
+  const clampPos = (p, s) => {
+    const { width, height } = stageRef.current.size;
+    return {
+      x: Math.round(Math.min(Math.max(p.x, 0), width - s.w)),
+      y: Math.round(Math.min(Math.max(p.y, 0), height - s.h)),
+    };
+  };
+
+  // 今見えている範囲の中心（横に少しずらせる）に新しい人型を置く
+  const newFig = (key, decoy, offset = 0) => {
+    const c = stageRef.current.viewCenter();
+    const s = figureSize(0);
+    return { key, decoy, pose: 'stand', rotation: 0, ...clampPos({ x: c.x - s.w / 2 + offset, y: c.y - s.h / 2 }, s) };
+  };
+
+  const handleReady = () => setFigs([newFig(MAIN, false)]);
+
+  const addDecoy = () => {
+    if (decoyCount >= MAX_DECOYS) return;
+    const key = `decoy-${nextKey.current++}`;
+    setFigs((fs) => [...fs, newFig(key, true, (decoyCount + 1) * 90)]);
+    setActiveKey(key);
+  };
+
+  const removeDecoy = () => {
+    if (!active?.decoy) return;
+    if (painters.current[active.key]?.painted && !window.confirm('このデコイを削除しますか？')) return;
+    delete painters.current[active.key];
+    delete canvasRefs.current[active.key];
+    setFigs((fs) => fs.filter((f) => f.key !== active.key));
+    setActiveKey(MAIN);
+  };
+
+  // canvas が表示されたら Painter を作る（再描画では作り直さない）
+  const bindCanvas = (f) => (el) => {
+    if (!el) return;
+    canvasRefs.current[f.key] = el;
+    if (!painters.current[f.key]) painters.current[f.key] = new Painter(el, f.pose, f.rotation);
+  };
+
+  // ポーズ・向きの変更（人型の中心がずれないように位置を補正する）
+  const reshape = (nextPose, nextRotation) => {
+    if (!active) return;
+    const painter = painters.current[active.key];
+    if (painter?.painted && !window.confirm('ポーズや向きを変えると塗りがリセットされます。よろしいですか？')) return;
+    const cur = figureSize(active.rotation);
+    const next = figureSize(nextRotation);
+    painter?.setPose(nextPose, nextRotation);
+    updateFig(active.key, {
+      pose: nextPose,
+      rotation: nextRotation,
+      ...clampPos({ x: active.x + (cur.w - next.w) / 2, y: active.y + (cur.h - next.h) / 2 }, next),
+    });
+  };
+
+  // -180 < 角度 <= 180 に正規化
+  const rotate = (delta) =>
+    reshape(active.pose, ((((active.rotation + delta + 180) % 360) + 360) % 360) - 180 || 0);
+
+  // ---- 人型の操作（選択 / 移動 / 描画） ----
+  const canvasPoint = (key, e) => {
+    const canvas = canvasRefs.current[key];
+    const rect = canvas.getBoundingClientRect();
+    return [
+      ((e.clientX - rect.left) / rect.width) * canvas.width,
+      ((e.clientY - rect.top) / rect.height) * canvas.height,
+    ];
+  };
+
+  const onPointerDown = (f) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setActiveKey(f.key);
+    if (tool === 'move') {
+      dragRef.current = { key: f.key, startX: e.clientX, startY: e.clientY, origin: { x: f.x, y: f.y } };
+    } else {
+      painters.current[f.key].beginStroke(...canvasPoint(f.key, e), { color, size, erase: tool === 'eraser' });
+      dragRef.current = { key: f.key, painting: true };
+    }
+  };
+
+  const onPointerMove = (f) => (e) => {
+    const drag = dragRef.current;
+    if (!drag || drag.key !== f.key) return;
+    if (drag.painting) {
+      const events = e.nativeEvent.getCoalescedEvents?.() ?? [e];
+      for (const ev of events) painters.current[f.key].strokeTo(...canvasPoint(f.key, ev));
+    } else {
+      updateFig(f.key, clampPos(
+        {
+          x: drag.origin.x + (e.clientX - drag.startX) / zoom,
+          y: drag.origin.y + (e.clientY - drag.startY) / zoom,
+        },
+        figureSize(f.rotation),
+      ));
+    }
+  };
+
+  const onPointerUp = () => {
+    const drag = dragRef.current;
+    if (drag?.painting) painters.current[drag.key].endStroke();
+    dragRef.current = null;
+  };
+
+  // キーボード：矢印で微調整、Ctrl+Z で元に戻す（選択中の人型に対して）
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target instanceof HTMLInputElement && e.target.type === 'text') return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        painters.current[activeKey]?.undo();
+        return;
+      }
+      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (d && active) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        updateFig(activeKey, (f) => clampPos({ x: f.x + d[0] * step, y: f.y + d[1] * step }, figureSize(f.rotation)));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeKey, active]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pickColor = async () => {
+    try {
+      const { sRGBHex } = await new window.EyeDropper().open();
+      // 一部ブラウザは rgb(...) 形式で返す
+      if (sRGBHex.startsWith('#')) setColor(sRGBHex.slice(0, 7));
+      else {
+        const [r, g, b] = sRGBHex.match(/\d+/g).map(Number);
+        setColor('#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join(''));
+      }
+      setTool('pen');
+    } catch {
+      // キャンセル
+    }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    const toData = (f) => {
+      const { w, h } = figureSize(f.rotation);
+      return { x: f.x, y: f.y, w, h, image: painters.current[f.key].toDataURL() };
+    };
+    try {
+      const main = figs.find((f) => f.key === MAIN);
+      const { id } = await api.createChameleon({
+        site: siteId,
+        name,
+        ...toData(main),
+        decoys: figs.filter((f) => f.decoy).map(toData),
+      });
+      addMyId(id);
+      setSavedId(id);
+    } catch (err) {
+      setError(`保存に失敗しました: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const currentTool = TOOLS.find((t) => t.key === tool);
+  const [r, g, b] = hexToRgb(color);
+
+  return (
+    <div className="game-page">
+      <header className="toolbar">
+        <a href="#/" className="toolbar-home">🦎 ホーム</a>
+        <span className="toolbar-title">隠れるモード</span>
+
+        <div className="tool-group">
+          {TOOLS.map((t) => (
+            <button key={t.key} className={tool === t.key ? 'active' : ''} onClick={() => setTool(t.key)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="tool-group">
+          <label className="color-field" title={`rgb(${r}, ${g}, ${b})`}>
+            <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setTool('pen'); }} />
+          </label>
+          {hasEyeDropper && (
+            <button onClick={pickColor} title="画面上の色を拾う">💧 スポイト</button>
+          )}
+          <label className="size-field">
+            太さ
+            <input type="range" min="1" max="24" value={size} onChange={(e) => setSize(Number(e.target.value))} />
+            <span>{size}</span>
+          </label>
+          <button onClick={() => painters.current[activeKey]?.fillAll(color)} title="選択中の人型全体を今の色で1回塗る">🪣 全体塗り</button>
+          <button onClick={() => painters.current[activeKey]?.undo()} title="Ctrl+Z">↩ 元に戻す</button>
+        </div>
+
+        <div className="tool-group">
+          <select value={active?.pose ?? 'stand'} disabled={!active} onChange={(e) => reshape(e.target.value, active.rotation)}>
+            {Object.entries(POSES).map(([k, p]) => (
+              <option key={k} value={k}>ポーズ: {p.label}</option>
+            ))}
+          </select>
+          <button disabled={!active} onClick={() => rotate(-ROTATE_STEP)} title="左に回す">⟲</button>
+          <button
+            className="rotation-value"
+            disabled={!active}
+            onClick={() => active.rotation !== 0 && reshape(active.pose, 0)}
+            title="クリックでまっすぐに戻す"
+          >
+            {active?.rotation ?? 0}°
+          </button>
+          <button disabled={!active} onClick={() => rotate(ROTATE_STEP)} title="右に回す">⟳</button>
+        </div>
+
+        <div className="tool-group">
+          <button disabled={!figs.length || decoyCount >= MAX_DECOYS} onClick={addDecoy} title="見つける人をだますニセモノを置く">
+            🎭 デコイを追加 ({decoyCount}/{MAX_DECOYS})
+          </button>
+          {active?.decoy && <button onClick={removeDecoy}>🗑 このデコイを削除</button>}
+        </div>
+
+        <div className="tool-group">
+          <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
+            {ZOOMS.map((z) => <option key={z} value={z}>🔍 {z * 100}%</option>)}
+          </select>
+          <label className="check-field">
+            <input type="checkbox" checked={outline} onChange={(e) => setOutline(e.target.checked)} />
+            枠を表示
+          </label>
+        </div>
+
+        <div className="tool-group toolbar-end">
+          <input
+            type="text"
+            placeholder="カメレオンの名前"
+            maxLength={20}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button className="primary" disabled={!figs.length || saving} onClick={save}>
+            {saving ? '保存中…' : 'ここに隠れる！'}
+          </button>
+        </div>
+      </header>
+      <div className="toolbar-hint">
+        {active && <strong>{figLabel(active, figs)}を編集中</strong>}　{currentTool.hint}
+        　/　位置: {active ? `(${active.x}, ${active.y})` : '-'}
+        {decoyCount > 0 && '　/　デコイをクリックした人は残り時間が減ります'}
+        {error && <span className="error">　{error}</span>}
+      </div>
+
+      <SiteStage ref={stageRef} siteId={siteId} zoom={zoom} onReady={handleReady}>
+        {figs.map((f) => {
+          const { w, h } = figureSize(f.rotation);
+          return (
+            <div key={f.key}>
+              <canvas
+                ref={bindCanvas(f)}
+                className={[
+                  'chameleon editable',
+                  `tool-${tool}`,
+                  outline && 'outlined',
+                  f.decoy && 'decoy',
+                  f.key === activeKey && 'active',
+                ].filter(Boolean).join(' ')}
+                style={{ left: f.x, top: f.y, width: w, height: h }}
+                onPointerDown={onPointerDown(f)}
+                onPointerMove={onPointerMove(f)}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+              />
+              {outline && (
+                <span className={`fig-tag ${f.decoy ? 'decoy' : ''}`} style={{ left: f.x, top: f.y }}>
+                  {figLabel(f, figs)}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </SiteStage>
+
+      {savedId && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <h2>隠れました！🦎</h2>
+            <p>
+              「{name.trim() || 'ななしのカメレオン'}」がページに潜みました。
+              {decoyCount > 0 && <><br />デコイ {decoyCount} 体も配置しました。</>}
+              <br />
+              何人に探され、何人に見つかったかはホームで確認できます。
+            </p>
+            <div className="modal-actions">
+              <a className="button primary" href="#/">ホームへ</a>
+              <a className="button" href={`#/hide?site=${siteId}&t=${Date.now()}`}>もう一人隠す</a>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
