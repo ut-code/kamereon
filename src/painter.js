@@ -75,6 +75,7 @@ export class Painter {
     this.coats = new Uint16Array(n);
     this.strokeMark = new Uint8Array(n);
     this.undoStack = [];
+    this.redoStack = [];
     this.image = this.ctx.createImageData(width, height);
     this.render();
   }
@@ -90,17 +91,36 @@ export class Painter {
     this.ctx.putImageData(this.image, 0, 0);
   }
 
+  snapshot() {
+    return { rgb: this.rgb.slice(), coats: this.coats.slice() };
+  }
+
+  restore({ rgb, coats }) {
+    this.rgb = rgb;
+    this.coats = coats;
+    this.render();
+  }
+
+  // 新しく塗ると、やり直しの履歴は消える
   pushUndo() {
-    this.undoStack.push({ rgb: this.rgb.slice(), coats: this.coats.slice() });
+    this.undoStack.push(this.snapshot());
     if (this.undoStack.length > MAX_UNDO) this.undoStack.shift();
+    this.redoStack = [];
   }
 
   undo() {
     const prev = this.undoStack.pop();
     if (!prev) return;
-    this.rgb = prev.rgb;
-    this.coats = prev.coats;
-    this.render();
+    this.redoStack.push(this.snapshot());
+    this.restore(prev);
+  }
+
+  // 元に戻した操作をやり直す
+  redo() {
+    const next = this.redoStack.pop();
+    if (!next) return;
+    this.undoStack.push(this.snapshot());
+    this.restore(next);
   }
 
   // 1ストロークの中では同じピクセルを何度なぞっても1回分の重ね塗りとして数える

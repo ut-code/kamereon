@@ -184,13 +184,14 @@ export default function Hide({ siteId }) {
     dragRef.current = null;
   };
 
-  // キーボード：矢印で微調整、Ctrl+Z で元に戻す（選択中の人型に対して）
+  // キーボード：矢印で微調整、Ctrl+Z で元に戻す、Ctrl+Shift+Z / Ctrl+Y でやり直す（選択中の人型に対して）
   useEffect(() => {
     const onKey = (e) => {
       if (e.target instanceof HTMLInputElement && e.target.type === 'text') return;
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'z' || e.key === 'y')) {
         e.preventDefault();
-        painters.current[activeKey]?.undo();
+        const redo = e.key === 'y' || e.shiftKey;
+        painters.current[activeKey]?.[redo ? 'redo' : 'undo']();
         return;
       }
       const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
@@ -249,67 +250,82 @@ export default function Hide({ siteId }) {
   return (
     <div className="game-page">
       <header className="toolbar">
-        <a href="#/" className="toolbar-home">🦎 ホーム</a>
-        <span className="toolbar-title">隠れるモード</span>
-
-        <div className="tool-group">
-          {TOOLS.map((t) => (
-            <button key={t.key} className={tool === t.key ? 'active' : ''} onClick={() => setTool(t.key)}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="tool-group">
-          <label className="color-field" title={`rgb(${r}, ${g}, ${b})`}>
-            <input type="color" value={color} onChange={(e) => { setColor(e.target.value); setTool('pen'); }} />
-          </label>
-          {hasEyeDropper && (
-            <button onClick={pickColor} title="画面上の色を拾う">💧 スポイト</button>
-          )}
-          <label className="size-field">
-            太さ
-            <input type="range" min="1" max="24" value={size} onChange={(e) => setSize(Number(e.target.value))} />
-            <span>{size}</span>
-          </label>
-          <button onClick={() => painters.current[activeKey]?.fillAll(color)} title="選択中の人型全体を今の色で1回塗る">🪣 全体塗り</button>
-          <button onClick={() => painters.current[activeKey]?.undo()} title="Ctrl+Z">↩ 元に戻す</button>
-        </div>
-
-        <div className="tool-group">
-          <select value={active?.pose ?? 'stand'} disabled={!active} onChange={(e) => reshape(e.target.value, active.rotation)}>
-            {Object.entries(POSES).map(([k, p]) => (
-              <option key={k} value={k}>ポーズ: {p.label}</option>
+        {/* ホーム・モード名（1行目）とツール（2行目） */}
+        <div className="toolbar-start">
+          <div className="tool-row">
+            <a href="#/" className="toolbar-home">🦎 ホーム</a>
+            <span className="toolbar-title">隠れるモード</span>
+          </div>
+          <div className="tool-group">
+            {TOOLS.map((t) => (
+              <button key={t.key} className={tool === t.key ? 'active' : ''} onClick={() => setTool(t.key)}>
+                {t.label}
+              </button>
             ))}
-          </select>
-          <button disabled={!active} onClick={() => rotate(-ROTATE_STEP)} title="左に回す">⟲</button>
-          <button
-            className="rotation-value"
-            disabled={!active}
-            onClick={() => active.rotation !== 0 && reshape(active.pose, 0)}
-            title="クリックでまっすぐに戻す"
-          >
-            {active?.rotation ?? 0}°
-          </button>
-          <button disabled={!active} onClick={() => rotate(ROTATE_STEP)} title="右に回す">⟳</button>
+          </div>
         </div>
 
-        <div className="tool-group">
-          <button disabled={!figs.length || decoyCount >= MAX_DECOYS} onClick={addDecoy} title="見つける人をだますニセモノを置く">
-            🎭 デコイを追加 ({decoyCount}/{MAX_DECOYS})
-          </button>
-          {active?.decoy && <button onClick={removeDecoy}>🗑 このデコイを削除</button>}
+        {/* 2列×2行：ポーズ / デコイ（1行目）、ズーム・枠 / 元に戻す・やり直す（2行目） */}
+        <div className="figure-options palette">
+          <div className="tool-group">
+            <select value={active?.pose ?? 'stand'} disabled={!active} onChange={(e) => reshape(e.target.value, active.rotation)}>
+              {Object.entries(POSES).map(([k, p]) => (
+                <option key={k} value={k}>ポーズ: {p.label}</option>
+              ))}
+            </select>
+            <button disabled={!active} onClick={() => rotate(-ROTATE_STEP)} title="左に回す">⟲</button>
+            <button
+              className="rotation-value"
+              disabled={!active}
+              onClick={() => active.rotation !== 0 && reshape(active.pose, 0)}
+              title="クリックでまっすぐに戻す"
+            >
+              {active?.rotation ?? 0}°
+            </button>
+            <button disabled={!active} onClick={() => rotate(ROTATE_STEP)} title="右に回す">⟳</button>
+          </div>
+          <div className="tool-group">
+            <button disabled={!figs.length || decoyCount >= MAX_DECOYS} onClick={addDecoy} title="見つける人をだますニセモノを置く">
+              🎭 デコイを追加 ({decoyCount}/{MAX_DECOYS})
+            </button>
+            {active?.decoy && <button onClick={removeDecoy}>🗑 このデコイを削除</button>}
+          </div>
+          <div className="tool-group">
+            <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
+              {ZOOMS.map((z) => <option key={z} value={z}>🔍 {z * 100}%</option>)}
+            </select>
+            <label className="check-field">
+              <input type="checkbox" checked={outline} onChange={(e) => setOutline(e.target.checked)} />
+              枠を表示
+            </label>
+          </div>
+          <div className="tool-group history">
+            <button onClick={() => painters.current[activeKey]?.undo()} title="元に戻す (Ctrl+Z)" aria-label="元に戻す">↩</button>
+            <button onClick={() => painters.current[activeKey]?.redo()} title="やり直す (Ctrl+Shift+Z)" aria-label="やり直す">↪</button>
+          </div>
         </div>
 
-        <div className="tool-group">
-          <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
-            {ZOOMS.map((z) => <option key={z} value={z}>🔍 {z * 100}%</option>)}
-          </select>
-          <label className="check-field">
-            <input type="checkbox" checked={outline} onChange={(e) => setOutline(e.target.checked)} />
-            枠を表示
-          </label>
-        </div>
+        {/* ペン・消しゴムの設定（選んでいる間だけ表示。色の設定はペンのときだけ） */}
+        {tool !== 'move' && (
+          <div className="brush-options palette">
+            {tool === 'pen' && (
+              <div className="tool-group">
+                <label className="color-field" title={`rgb(${r}, ${g}, ${b})`}>
+                  <input type="color" value={color} onChange={(e) => setColor(e.target.value)} />
+                </label>
+                {hasEyeDropper && (
+                  <button onClick={pickColor} title="画面上の色を拾う">💧 スポイト</button>
+                )}
+                <button onClick={() => painters.current[activeKey]?.fillAll(color)} title="選択中の人型全体を今の色で1回塗る">🪣 全体塗り</button>
+              </div>
+            )}
+            <label className="size-field">
+              太さ
+              <input type="range" min="1" max="24" value={size} onChange={(e) => setSize(Number(e.target.value))} />
+              <span>{size}</span>
+            </label>
+          </div>
+        )}
 
         <div className="tool-group toolbar-end">
           <input
