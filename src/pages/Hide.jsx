@@ -13,6 +13,8 @@ const TOOLS = [
 
 const ZOOMS = [1, 1.5, 2, 3, 4];
 const MAX_DECOYS = 3;
+const AUTO_SCROLL_EDGE = 24; // 見えている範囲の上端・下端からこの距離（画面上の px）に入ったら自動スクロール
+const AUTO_SCROLL_MAX = 20; // 1フレームあたりの最大スクロール量 (px)
 const hasEyeDropper = typeof window !== 'undefined' && 'EyeDropper' in window;
 
 const MAIN = 'main';
@@ -114,13 +116,48 @@ export default function Hide({ siteId }) {
     ];
   };
 
+  // ドラッグ中の人型の位置（ページ座標でつかんだ点を基準にするので、スクロールしてもポインタに付いてくる）
+  const dragPos = (drag) => {
+    const p = stageRef.current.toStagePoint(drag.clientX, drag.clientY);
+    return clampPos({ x: p.x - drag.grab.x, y: p.y - drag.grab.y }, drag.size);
+  };
+
+  // ドラッグ中、人型が見えている範囲の上端・下端に来たら、その方向へ自動でスクロールする
+  const autoScroll = () => {
+    const drag = dragRef.current;
+    if (!drag || drag.painting) return;
+    const stage = stageRef.current;
+    const pos = dragPos(drag);
+    const view = stage.viewRect();
+    const edge = AUTO_SCROLL_EDGE / zoom;
+    const dy = drag.clientY - drag.startY; // つかんだ時点で端にあっても、端へ向かって動かすまではスクロールしない
+    const over =
+      dy < 0 ? Math.min(0, pos.y - (view.top + edge)) : dy > 0 ? Math.max(0, pos.y + drag.size.h - (view.bottom - edge)) : 0;
+    if (over) {
+      stage.scrollBy(0, Math.sign(over) * Math.min(AUTO_SCROLL_MAX, Math.ceil((Math.abs(over) * zoom) / 4)));
+      if (stage.viewRect().top !== view.top) updateFig(drag.key, dragPos(drag));
+    }
+    drag.raf = requestAnimationFrame(autoScroll);
+  };
+
+  useEffect(() => () => cancelAnimationFrame(dragRef.current?.raf), []);
+
   const onPointerDown = (f) => (e) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     setActiveKey(f.key);
     if (tool === 'move') {
-      dragRef.current = { key: f.key, startX: e.clientX, startY: e.clientY, origin: { x: f.x, y: f.y } };
+      const p = stageRef.current.toStagePoint(e.clientX, e.clientY);
+      dragRef.current = {
+        key: f.key,
+        size: figureSize(f.rotation),
+        grab: { x: p.x - f.x, y: p.y - f.y },
+        startY: e.clientY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+      };
+      dragRef.current.raf = requestAnimationFrame(autoScroll);
     } else {
       painters.current[f.key].beginStroke(...canvasPoint(f.key, e), { color, size, erase: tool === 'eraser' });
       dragRef.current = { key: f.key, painting: true };
@@ -134,19 +171,16 @@ export default function Hide({ siteId }) {
       const events = e.nativeEvent.getCoalescedEvents?.() ?? [e];
       for (const ev of events) painters.current[f.key].strokeTo(...canvasPoint(f.key, ev));
     } else {
-      updateFig(f.key, clampPos(
-        {
-          x: drag.origin.x + (e.clientX - drag.startX) / zoom,
-          y: drag.origin.y + (e.clientY - drag.startY) / zoom,
-        },
-        figureSize(f.rotation),
-      ));
+      drag.clientX = e.clientX;
+      drag.clientY = e.clientY;
+      updateFig(f.key, dragPos(drag));
     }
   };
 
   const onPointerUp = () => {
     const drag = dragRef.current;
     if (drag?.painting) painters.current[drag.key].endStroke();
+    cancelAnimationFrame(drag?.raf);
     dragRef.current = null;
   };
 
