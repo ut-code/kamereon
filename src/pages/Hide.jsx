@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import SiteStage from "../components/SiteStage.jsx";
+import Icon from "../components/Icon.jsx";
 import { POSES, ROTATE_STEP, figureSize } from "../figure.js";
 import { Painter, hexToRgb } from "../painter.js";
 import { api } from "../api.js";
@@ -8,15 +9,15 @@ import { addMyId } from "../myChameleons.js";
 const TOOLS = [
   {
     key: "move",
-    label: "✋ 移動",
+    label: "移動",
     hint: "ドラッグで移動（矢印キーで1pxずつ）",
   },
   {
     key: "pen",
-    label: "🖊 ペン",
+    label: "ペン",
     hint: "重ねて塗るほど少し暗く・鮮やかになります",
   },
-  { key: "eraser", label: "🩹 消しゴム", hint: "白に戻します" },
+  { key: "eraser", label: "消しゴム", hint: "白に戻します" },
 ];
 
 const ZOOMS = [1, 1.5, 2, 3, 4];
@@ -352,7 +353,7 @@ export default function Hide({ siteId }) {
                 className={tool === t.key ? "active" : ""}
                 onClick={() => setTool(t.key)}
               >
-                {t.label}
+                <Icon name={t.key} /> {t.label}
               </button>
             ))}
           </div>
@@ -376,8 +377,9 @@ export default function Hide({ siteId }) {
               disabled={!active}
               onClick={() => rotate(-ROTATE_STEP)}
               title="左に回す"
+              aria-label="左に回す"
             >
-              ⟲
+              <Icon name="rotateLeft" />
             </button>
             <button
               className="rotation-value"
@@ -391,8 +393,9 @@ export default function Hide({ siteId }) {
               disabled={!active}
               onClick={() => rotate(ROTATE_STEP)}
               title="右に回す"
+              aria-label="右に回す"
             >
-              ⟳
+              <Icon name="rotateRight" />
             </button>
           </div>
           <div className="tool-group">
@@ -401,10 +404,12 @@ export default function Hide({ siteId }) {
               onClick={addDecoy}
               title="見つける人をだますニセモノを置く"
             >
-              🎭 デコイを追加 ({decoyCount}/{MAX_DECOYS})
+              <Icon name="decoy" /> デコイを追加 ({decoyCount}/{MAX_DECOYS})
             </button>
             {active?.decoy && (
-              <button onClick={removeDecoy}>🗑 デコイを削除</button>
+              <button onClick={removeDecoy}>
+                <Icon name="trash" /> デコイを削除
+              </button>
             )}
           </div>
           <div className="tool-group">
@@ -433,14 +438,14 @@ export default function Hide({ siteId }) {
               title="元に戻す (Ctrl+Z)"
               aria-label="元に戻す"
             >
-              ↩
+              <Icon name="undo" />
             </button>
             <button
               onClick={() => painters.current[activeKey]?.redo()}
               title="やり直す (Ctrl+Shift+Z)"
               aria-label="やり直す"
             >
-              ↪
+              <Icon name="redo" />
             </button>
           </div>
         </div>
@@ -459,14 +464,14 @@ export default function Hide({ siteId }) {
                 </label>
                 {hasEyeDropper && (
                   <button onClick={pickColor} title="画面上の色を拾う">
-                    💧 スポイト
+                    <Icon name="eyedropper" /> スポイト
                   </button>
                 )}
                 <button
                   onClick={() => painters.current[activeKey]?.fillAll(color)}
                   title="選択中の人型全体を今の色で1回塗る"
                 >
-                  🪣 全体塗り
+                  <Icon name="fill" /> 全体塗り
                 </button>
               </div>
             )}
@@ -569,16 +574,22 @@ export default function Hide({ siteId }) {
             <dl>
               {TOOLS.map((t) => (
                 <div key={t.key}>
-                  <dt>{t.label}</dt>
+                  <dt>
+                    <Icon name={t.key} /> {t.label}
+                  </dt>
                   <dd>{t.hint}</dd>
                 </div>
               ))}
             </dl>
             <h3>その他</h3>
             <ul>
-              <li>ポーズを選んだり、⟲ ⟳ で回転させたりできます。</li>
               <li>
-                🎭 デコイ（ニセモノ）を最大{MAX_DECOYS}
+                ポーズを選んだり、
+                <Icon name="rotateLeft" /> <Icon name="rotateRight" />
+                で回転させたりできます。
+              </li>
+              <li>
+                <Icon name="decoy" /> デコイ（ニセモノ）を最大{MAX_DECOYS}
                 体まで置けます。デコイをクリックした人は残り時間が減ります。
               </li>
               <li>

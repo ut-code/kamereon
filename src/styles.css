@@ -104,6 +104,11 @@ button.active {
   font-weight: 700;
   color: var(--muted);
 }
+.icon {
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+}
 .help-button {
   width: 26px;
   height: 26px;
