@@ -104,6 +104,15 @@ button.active {
   font-weight: 700;
   color: var(--muted);
 }
+.help-button {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: -10px; /* タイトルとの間隔を詰める */
+}
 .tool-group {
   display: flex;
   align-items: center;
@@ -118,6 +127,9 @@ button.active {
   padding: 4px 12px;
   background: #fafcf9;
   border-bottom: 1px solid var(--line);
+}
+.editing-label {
+  margin-right: 20px;
 }
 
 .color-field input {
@@ -250,6 +262,7 @@ button.active {
   white-space: nowrap;
   font-size: 11px;
   line-height: 1;
+  margin-left: -10px; /* タイトルとの間隔を詰める */
   padding: 3px 6px;
   border-radius: 4px;
   background: rgba(255, 0, 140, 0.85);
@@ -373,6 +386,40 @@ button.active {
   margin-top: 0;
 }
 .modal p {
+  line-height: 1.7;
+}
+.help-modal {
+  max-width: 520px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  text-align: left;
+}
+.help-modal h2 {
+  text-align: center;
+}
+.help-modal h3 {
+  font-size: 15px;
+  margin: 16px 0 6px;
+}
+.help-modal dl {
+  margin: 0;
+}
+.help-modal dl > div {
+  display: flex;
+  gap: 12px;
+  padding: 4px 0;
+}
+.help-modal dt {
+  flex: none;
+  width: 7em;
+  font-weight: 700;
+}
+.help-modal dd {
+  margin: 0;
+}
+.help-modal ul {
+  margin: 0;
+  padding-left: 1.2em;
   line-height: 1.7;
 }
 .modal-actions {

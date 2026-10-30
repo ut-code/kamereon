@@ -48,6 +48,7 @@ export default function Hide({ siteId }) {
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState(null);
   const [error, setError] = useState("");
+  const [showHelp, setShowHelp] = useState(false);
 
   const active = figs.find((f) => f.key === activeKey);
   const decoyCount = figs.filter((f) => f.decoy).length;
@@ -240,6 +241,10 @@ export default function Hide({ siteId }) {
   // キーボード：矢印で微調整、Ctrl+Z で元に戻す、Ctrl+Shift+Z / Ctrl+Y でやり直す（選択中の人型に対して）
   useEffect(() => {
     const onKey = (e) => {
+      if (showHelp) {
+        if (e.key === "Escape") setShowHelp(false);
+        return;
+      }
       if (e.target instanceof HTMLInputElement && e.target.type === "text")
         return;
       if (
@@ -270,7 +275,7 @@ export default function Hide({ siteId }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activeKey, active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeKey, active, showHelp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pickColor = async () => {
     try {
@@ -319,7 +324,6 @@ export default function Hide({ siteId }) {
     }
   };
 
-  const currentTool = TOOLS.find((t) => t.key === tool);
   const [r, g, b] = hexToRgb(color);
 
   return (
@@ -332,6 +336,14 @@ export default function Hide({ siteId }) {
               🦎 ホーム
             </a>
             <span className="toolbar-title">隠れるモード</span>
+            <button
+              className="help-button"
+              onClick={() => setShowHelp(true)}
+              title="隠れるモードの説明"
+              aria-label="隠れるモードの説明"
+            >
+              ?
+            </button>
           </div>
           <div className="tool-group">
             {TOOLS.map((t) => (
@@ -490,9 +502,12 @@ export default function Hide({ siteId }) {
         </div>
       </header>
       <div className="toolbar-hint">
-        {active && <strong>{figLabel(active, figs)}を編集中</strong>}　
-        {currentTool.hint}
-        　/　位置: {active ? `(${active.x}, ${active.y})` : "-"}
+        {active && (
+          <strong className="editing-label">
+            {figLabel(active, figs)}を編集中
+          </strong>
+        )}
+        位置: {active ? `(${active.x}, ${active.y})` : "-"}
         {decoyCount > 0 && "　/　デコイをクリックした人は残り時間が減ります"}
         {error && <span className="error">　{error}</span>}
       </div>
@@ -536,6 +551,49 @@ export default function Hide({ siteId }) {
           );
         })}
       </SiteStage>
+
+      {showHelp && (
+        <div className="modal-backdrop" onClick={() => setShowHelp(false)}>
+          <div
+            className="modal help-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2>隠れるモードの遊び方</h2>
+            <p>
+              人型のカメレオンをページのどこかに置き、背景になじむように色を塗って隠しましょう。
+              「ここに隠れる！」を押すと保存され、見つけるモードで他の人に探してもらえます。
+            </p>
+            <h3>ツール</h3>
+            <dl>
+              {TOOLS.map((t) => (
+                <div key={t.key}>
+                  <dt>{t.label}</dt>
+                  <dd>{t.hint}</dd>
+                </div>
+              ))}
+            </dl>
+            <h3>その他</h3>
+            <ul>
+              <li>ポーズを選んだり、⟲ ⟳ で回転させたりできます。</li>
+              <li>
+                🎭 デコイ（ニセモノ）を最大{MAX_DECOYS}
+                体まで置けます。デコイをクリックした人は残り時間が減ります。
+              </li>
+              <li>
+                Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift
+                を押しながらだと10pxずつ移動します。
+              </li>
+            </ul>
+            <div className="modal-actions">
+              <button className="primary" onClick={() => setShowHelp(false)}>
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {savedId && (
         <div className="modal-backdrop">
