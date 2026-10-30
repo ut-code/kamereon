@@ -41,7 +41,7 @@ input[type="text"] {
   padding: 6px 10px;
 }
 input[type="text"] {
-  width: 160px;
+  width: 140px;
 }
 button,
 .button {
@@ -125,6 +125,10 @@ button.active {
 }
 .toolbar-end {
   margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
 }
 .toolbar-hint {
   font-size: 12px;
@@ -178,14 +182,17 @@ button.active {
   flex-direction: column;
   gap: 6px;
 }
-/* 左の列：ポーズ・ズーム、右の列：デコイ・元に戻す/やり直す */
+/* 左の列：ポーズ・ズーム、右の列：デコイの追加・削除 */
 .figure-options {
   display: grid;
   grid-template-columns: auto auto;
   align-items: center;
   gap: 6px 16px;
 }
-.figure-options .history {
+/* デコイの追加・削除は上下に並べ、右端をパレットの右端に揃える */
+.figure-options .decoy-add,
+.figure-options .decoy-remove {
+  grid-column: 2;
   justify-self: end;
 }
 

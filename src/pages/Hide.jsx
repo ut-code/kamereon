@@ -359,7 +359,7 @@ export default function Hide({ siteId }) {
           </div>
         </div>
 
-        {/* 2列×2行：ポーズ / デコイ（1行目）、ズーム・枠 / 元に戻す・やり直す（2行目） */}
+        {/* 2列×2行：ポーズ / デコイを追加（1行目）、ズーム・枠 / デコイを削除（2行目） */}
         <div className="figure-options palette">
           <div className="tool-group">
             <select
@@ -398,20 +398,14 @@ export default function Hide({ siteId }) {
               <Icon name="rotateRight" />
             </button>
           </div>
-          <div className="tool-group">
-            <button
-              disabled={!figs.length || decoyCount >= MAX_DECOYS}
-              onClick={addDecoy}
-              title="見つける人をだますニセモノを置く"
-            >
-              <Icon name="decoy" /> デコイを追加 ({decoyCount}/{MAX_DECOYS})
-            </button>
-            {active?.decoy && (
-              <button onClick={removeDecoy}>
-                <Icon name="trash" /> デコイを削除
-              </button>
-            )}
-          </div>
+          <button
+            className="decoy-add"
+            disabled={!figs.length || decoyCount >= MAX_DECOYS}
+            onClick={addDecoy}
+            title="見つける人をだますニセモノを置く"
+          >
+            <Icon name="decoy" /> デコイを追加 ({decoyCount}/{MAX_DECOYS})
+          </button>
           <div className="tool-group">
             <select
               value={zoom}
@@ -432,22 +426,11 @@ export default function Hide({ siteId }) {
               枠を表示
             </label>
           </div>
-          <div className="tool-group history">
-            <button
-              onClick={() => painters.current[activeKey]?.undo()}
-              title="元に戻す (Ctrl+Z)"
-              aria-label="元に戻す"
-            >
-              <Icon name="undo" />
+          {active?.decoy && (
+            <button className="decoy-remove" onClick={removeDecoy}>
+              <Icon name="trash" /> デコイを削除
             </button>
-            <button
-              onClick={() => painters.current[activeKey]?.redo()}
-              title="やり直す (Ctrl+Shift+Z)"
-              aria-label="やり直す"
-            >
-              <Icon name="redo" />
-            </button>
-          </div>
+          )}
         </div>
 
         {/* ペン・消しゴムの設定（選んでいる間だけ表示。色の設定はペンのときだけ） */}
@@ -489,21 +472,40 @@ export default function Hide({ siteId }) {
           </div>
         )}
 
-        <div className="tool-group toolbar-end">
-          <input
-            type="text"
-            placeholder="カメレオンの名前"
-            maxLength={20}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button
-            className="primary"
-            disabled={!figs.length || saving}
-            onClick={save}
-          >
-            {saving ? "保存中…" : "ここに隠れる！"}
-          </button>
+        {/* 元に戻す・やり直す（1行目）と名前・保存（2行目） */}
+        <div className="toolbar-end">
+          <div className="tool-group">
+            <button
+              onClick={() => painters.current[activeKey]?.undo()}
+              title="元に戻す (Ctrl+Z)"
+              aria-label="元に戻す"
+            >
+              <Icon name="undo" />
+            </button>
+            <button
+              onClick={() => painters.current[activeKey]?.redo()}
+              title="やり直す (Ctrl+Shift+Z)"
+              aria-label="やり直す"
+            >
+              <Icon name="redo" />
+            </button>
+          </div>
+          <div className="tool-group">
+            <input
+              type="text"
+              placeholder="カメレオンの名前"
+              maxLength={20}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <button
+              className="primary"
+              disabled={!figs.length || saving}
+              onClick={save}
+            >
+              {saving ? "保存中…" : "ここに隠れる！"}
+            </button>
+          </div>
         </div>
       </header>
       <div className="toolbar-hint">
