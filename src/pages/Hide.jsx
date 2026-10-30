@@ -95,11 +95,6 @@ export default function Hide({ siteId }) {
 
   const removeDecoy = () => {
     if (!active?.decoy) return;
-    if (
-      painters.current[active.key]?.painted &&
-      !window.confirm("このデコイを削除しますか？")
-    )
-      return;
     delete painters.current[active.key];
     delete canvasRefs.current[active.key];
     setFigs((fs) => fs.filter((f) => f.key !== active.key));
