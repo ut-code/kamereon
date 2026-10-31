@@ -6,6 +6,7 @@ import { getMyIds } from '../myChameleons.js';
 const ZOOMS = [1, 1.5, 2, 3];
 const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
 const DECOY_PENALTY_SEC = 10; // デコイをクリックしたときに減る時間
+const CLICK_COOLDOWN_MS = 500; // クリックのクールダウン時間
 
 // 画像の不透明ピクセルをクリックしたかどうかを判定するためのマスクを作る
 async function loadAlphaMask(src) {
@@ -51,6 +52,9 @@ export default function Find({ siteId }) {
   const [zoom, setZoom] = useState(1);
   const [panelOpen, setPanelOpen] = useState(true);
   const [error, setError] = useState('');
+  const [isCoolingDown, setIsCoolingDown] = useState(false);
+  const [animatingFound, setAnimatingFound] = useState([]);
+  const [showFound, setShowFound] = useState(false);
 
   const remaining = Math.max(0, (deadline - now) / 1000);
 
@@ -93,7 +97,7 @@ export default function Find({ siteId }) {
   }, [phase, remaining, found, game]);
 
   const onStageClick = (e) => {
-    if (phase !== 'playing') return;
+    if (phase !== 'playing' || isCoolingDown) return;
     const { x, y } = stageRef.current.toStagePoint(e.clientX, e.clientY);
     const hit = game.chameleons.find(
       (c) => !found.includes(c.id) && hits(c, masksRef.current[c.id], x, y),
@@ -103,14 +107,22 @@ export default function Find({ siteId }) {
     );
     if (hit) {
       setFound((f) => [...f, hit.id]);
+      setAnimatingFound((af) => [...af, hit.id]);
+      setTimeout(() => {
+        setAnimatingFound((a) => a.filter((id) => id !== hit.id));
+      }, 2000);
       api.reportFound(game.gameId, hit.id).catch(() => {});
     } else if (decoy) {
+      setIsCoolingDown(true);
+      setTimeout(() => setIsCoolingDown(false), CLICK_COOLDOWN_MS);
       setTripped((t) => [...t, decoy.key]);
       setDeadline((d) => d - DECOY_PENALTY_SEC * 1000);
       const miss = { id: Date.now() + Math.random(), x, y, decoy: true };
       setMisses((m) => [...m, miss]);
       setTimeout(() => setMisses((m) => m.filter((v) => v.id !== miss.id)), 1200);
     } else {
+      setIsCoolingDown(true);
+      setTimeout(() => setIsCoolingDown(false), CLICK_COOLDOWN_MS);
       const miss = { id: Date.now() + Math.random(), x, y };
       setMisses((m) => [...m, miss]);
       setTimeout(() => setMisses((m) => m.filter((v) => v.id !== miss.id)), 700);
@@ -122,24 +134,93 @@ export default function Find({ siteId }) {
 
   return (
     <div className="game-page">
-      <header className="toolbar">
-        <a href="#/" className="toolbar-home">🦎 ホーム</a>
-        <span className="toolbar-title">見つけるモード</span>
-        {game && (
-          <div className="tool-group hud">
-            <span className={`timer ${remaining < 30 && !over ? 'danger' : ''}`}>⏱ {fmt(remaining)}</span>
-            <span className="score">見つけた {found.length} / {total}</span>
+    <header className="toolbar">
+        {/* 左側グループ：ホーム、タイトル、倍率スライダー */}
+        <div className="toolbar-left">
+          <a href="#/" className="toolbar-home">🦎 ホーム</a>
+          <span className="toolbar-title">見つける</span>
+          <div className="tool-group zoom-slider-group">
+            <span className="zoom-label">{Math.round(zoom * 100)}%</span>
+            <input
+              type="range"
+              min="1"
+              max="3"
+              step="0.1"
+              value={zoom}
+              onChange={(e) => setZoom(Number(e.target.value))}
+              className="zoom-slider"
+            />
           </div>
-        )}
-        <div className="tool-group">
-          <select value={zoom} onChange={(e) => setZoom(Number(e.target.value))}>
-            {ZOOMS.map((z) => <option key={z} value={z}>🔍 {z * 100}%</option>)}
-          </select>
         </div>
-        <div className="tool-group toolbar-end">
-          {phase === 'playing' && <button onClick={() => setPhase('over')}>ギブアップ</button>}
-          {over && <button onClick={() => setPanelOpen((v) => !v)}>結果を{panelOpen ? '隠す' : '見る'}</button>}
-          {over && <a className="button primary" href={`#/find?site=${siteId}&t=${Date.now()}`}>もう一度</a>}
+
+        {/* 中央グループ：半円ゲージタイマー（完全中央固定） */}
+        <div className="toolbar-center">
+          {game && phase === 'playing' && (() => {
+            const timeLimitSec = (game?.timeLimit ?? 180);
+            const elapsedRatio = Math.min(1, Math.max(0, (timeLimitSec - remaining) / timeLimitSec));
+            const radius = 36;
+            const halfCircumference = Math.PI * radius;
+            const strokeDashoffset = halfCircumference * (1 - elapsedRatio);
+
+            return (
+              <div className={`semi-circle-timer ${remaining < 30 ? 'danger' : ''}`}>
+                <svg viewBox="0 0 100 55" className="gauge-svg">
+                  <path
+                    d="M 14 46 A 36 36 0 0 1 86 46"
+                    fill="none"
+                    stroke="#dde5da"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M 14 46 A 36 36 0 0 1 86 46"
+                    fill="none"
+                    stroke="var(--green)"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={halfCircumference}
+                    strokeDashoffset={strokeDashoffset}
+                    className="gauge-progress"
+                  />
+                </svg>
+                <span className="digital-clock">{fmt(remaining)}</span>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* 右側グループ：人型アイコン、カウント、各ボタン */}
+        <div className="toolbar-right">
+          {game && phase === 'playing' && (
+            <>
+              <div className="hud-person-group">
+                {Array.from({ length: total }).map((_, i) => {
+                  const isFound = i < found.length;
+                  return (
+                    <div key={i} className={`person-icon-wrapper ${isFound ? 'found' : ''}`}>
+                      <svg className="person-icon" viewBox="0 0 24 24" width="26" height="26">
+                        <circle cx="12" cy="7" r="4" fill="currentColor" />
+                        <path d="M12 12c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5z" fill="currentColor" />
+                      </svg>
+                      {isFound && <span className="cross-mark">✕</span>}
+                    </div>
+                  );
+                })}             
+              </div>
+              <span className="hud-count-inline">{found.length}/{total}</span>
+            </>
+          )}
+
+          <div className="tool-group toolbar-buttons">
+            {over && <button onClick={() => setPanelOpen((v) => !v)}>結果を{panelOpen ? '隠す' : '見る'}</button>}
+            {over && <a className="button primary" href={`#/find?site=${siteId}&t=${Date.now()}`}>もう一度</a>}
+            {phase === 'playing' && (
+              <button onClick={() => setShowFound((v) => !v)}>
+                {showFound ? '発見済みを隠す' : '発見済みを表示'}
+              </button>
+            )}
+            {phase === 'playing' && <button onClick={() => setPhase('over')}>終了</button>}
+          </div>
         </div>
       </header>
 
@@ -152,10 +233,15 @@ export default function Find({ siteId }) {
       >
         {game?.chameleons.map((c) => {
           const isFound = found.includes(c.id);
+          const isAnimating = animatingFound.includes(c.id);
+          if (phase === 'playing' && isFound && !isAnimating && !showFound) {
+            return null;
+          }
           return (
             <div
               key={c.id}
-              className={`chameleon-slot ${isFound ? 'found' : ''} ${over && !isFound ? 'revealed' : ''}`}
+              className={`chameleon-slot ${isFound ? 'found' : ''} ${isAnimating ? 'blinking' : ''}`}
+              //className={`chameleon-slot ${isFound ? 'found' : ''} ${over && !isFound ? 'revealed' : ''}`}
               style={{ left: c.x, top: c.y, width: c.w, height: c.h }}
             >
               <img src={c.image} alt="" draggable={false} />
