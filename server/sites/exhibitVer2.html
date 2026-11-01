@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>古今東西美術展</title>
+    <style>
+        /* =========================================
+           1. 全体のベース設定
+           ========================================= */
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #15181c 0%, #05080a 100%);
+            background-attachment: fixed; 
+            color: #fff;
+            font-family: "Shippori Mincho", "Zen Old Mincho", serif; 
+        }
+        
+        .background-img {
+            width: 100%;
+            display: block;
+            object-fit: cover;
+        }
+
+        /* =========================================
+           2. ヘッダー（すりガラス）
+           ========================================= */
+        .site-header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 40px;
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px); 
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .site-logo {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 4px; 
+            font-weight: normal;
+        }
+        .header-nav {
+            display: flex;
+            align-items: center;
+            gap: 30px; 
+            font-family: Arial, sans-serif; 
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+        .nav-link { color: #ccc; text-decoration: none; transition: 0.3s; }
+        .nav-link:hover { color: #fff; }
+        .ticket-btn {
+            background-color: #d4af37; 
+            color: #000;
+            padding: 10px 24px;
+            text-decoration: none;
+            border-radius: 4px; 
+            font-weight: bold;
+        }
+
+        /* =========================================
+           3. 展示レイアウト用の箱（グリッドシステム）
+           ========================================= */
+        
+        /* 1段1枚（縦長・横長共通） */
+        .art-section-full {
+            position: relative; 
+            width: 100%;
+            line-height: 0; 
+            font-size: 0;
+        }
+
+        /* 複数枚を横に並べる親の箱 */
+        .art-section-row {
+            display: flex; 
+            gap: 15px; /* 画像同士の隙間 */
+            padding: 15px; /* 画面端の隙間 */
+        }
+
+        /* 1段2枚用の箱 (50%幅) */
+        .art-half {
+            flex: 1; 
+            position: relative; 
+            line-height: 0;
+            font-size: 0;
+        }
+
+        /* 1段3枚用の箱 (33%幅) */
+        .art-third {
+            flex: 1;
+            position: relative;
+            line-height: 0;
+            font-size: 0;
+        }
+
+        /* 作品名ラベル */
+        .art-label {
+            position: absolute; 
+            background-color: rgba(0, 0, 0, 0.6); 
+            padding: 6px 16px;
+            border-left: 3px solid #d4af37; 
+            font-size: 13px;
+            line-height: 1.5; 
+            box-shadow: 2px 2px 15px rgba(0,0,0,0.8); 
+            color: #eee;
+            letter-spacing: 1px;
+        }
+
+        /* =========================================
+           4. 特別な演出要素
+           ========================================= */
+        
+        /* Rijksmuseum風の巨大タイトル */
+        .hero-title {
+            position: absolute;
+            top: 1.5%;
+            left: 73%;
+            transform: translate(-50%, -50%);
+            font-size: 10vw;
+            font-weight: bold;
+            font-family: "Arial Black", sans-serif;
+            color: rgba(255, 255, 255, 0.85);
+            letter-spacing: 8px;
+            pointer-events: none; 
+            text-shadow: 0 15px 40px rgba(0,0,0,0.7);
+            z-index: 10;
+        }
+
+        /* すかし背景の区切り文字（ポエム領域） */
+        .blur-divider { 
+            text-align: center; 
+            padding: 120px 20px; 
+            background-size: cover; 
+            background-position: center center; /* 常に画像のど真ん中を表示 */
+            /* background-attachment: fixed; ← ★極端なズームの原因になるので削除（またはコメントアウト）しました */
+            border-top: 1px solid rgba(255,255,255,0.1); 
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            font-size: 25px; 
+            letter-spacing: 6px; 
+            color: #c9ba9b; 
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8); 
+            margin: 20px 0;
+        }
+
+        /* =========================================
+           5. フッター
+           ========================================= */
+        .site-footer { 
+            padding: 80px 60px; 
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 13px; 
+            color: #ccc; /* 背景に絵が入るので少し文字を明るく */
+            font-family: Arial, sans-serif; 
+            background-size: cover; 
+            background-position: center;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.9); /* 文字が埋もれないように影を追加 */
+            margin-top: 20px; 
+        }
+        .footer-column h3 { 
+            color: #fff; 
+            margin-top: 0; 
+            margin-bottom: 25px; 
+            font-size: 14px; 
+            letter-spacing: 3px; 
+            text-shadow: 0 2px 5px rgba(0,0,0,0.9);
+        }
+        .footer-column p, .footer-column ul { 
+            line-height: 2; 
+            margin: 0; 
+            padding: 0; 
+            list-style: none; 
+        }
+    </style>
+</head>
+<body>
+    
+    <!-- ヘッダー -->
+    <header class="site-header">
+        <h1 class="site-logo">古今東西美術館</h1>
+        <nav class="header-nav">
+            <a href="javascript:void(0)" class="nav-link">EXHIBITIONS</a>
+            <a href="javascript:void(0)" class="nav-link">COLLECTION</a>
+            <a href="javascript:void(0)" class="ticket-btn">TICKETS</a>
+        </nav>
+    </header>
+
+    <!-- =========================================
+         【イントロ ＆ エントランス】
+         ========================================= -->
+    
+    <!-- Block 1: 結合A (巨大文字演出) -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/01_hokusai_gogh.webp" alt="北斎とゴッホ" class="background-img">
+        <div class="hero-title">EXHIBIT</div>
+        <div class="art-label" style="top: 10%; left: 10%;">葛飾北斎『神奈川沖浪裏』</div>
+        <div class="art-label" style="bottom: 10%; left: 60%;">ゴッホ『夜のカフェテラス』</div>
+    </div>
+
+    <!-- 透かし区切り 1 -->
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('images/bg/exhibitimages/hamamatsuzubyobu.webp');">
+        大地と人の営み
+    </div>
+
+    <!-- =========================================
+         【Chapter 1：風景と人】
+         ========================================= -->
+    
+    <!-- Block 2: 落穂拾い -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/ミレー落穂ひろい.webp" alt="落穂拾い" class="background-img" loading="lazy">
+        <div class="art-label" style="bottom: 15%; left: 5%;">ミレー『落穂拾い』</div>
+    </div>
+
+    <!-- Block 3: バベルの塔 -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/バベルの塔.webp" alt="バベルの塔" class="background-img" loading="lazy">
+        <div class="art-label" style="bottom: 10%; right: 5%;">ブリューゲル『バベルの塔』</div>
+    </div>
+
+    <!-- Block 4: 秋冬山水図 -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/秋冬山水図雪舟.webp" alt="雪舟" class="background-img" loading="lazy">
+        <div class="art-label" style="top: 50%; left: 10%;">雪舟『秋冬山水図』</div>
+    </div>
+
+    <!-- 透かし区切り 2 -->
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('images/bg/exhibitimages/Edouard_Manet\,_A_Bar_at_the_Folies-Bergère\(マネ\).webp');">
+        日常に潜むドラマ
+    </div>
+
+    <!-- =========================================
+         【Chapter 2：物語の始まり】
+         ========================================= -->
+    
+    <!-- Block 5: 結合B -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/05_vermeer_utamaro.webp" alt="フェルメールと歌麿" class="background-img" loading="lazy">
+        <div class="art-label" style="top: 15%; left: 10%;">フェルメール『牛乳を注ぐ女』</div>
+        <div class="art-label" style="bottom: 15%; right: 10%;">喜多川歌麿『ポッピンを吹く女』</div>
+    </div>
+
+    <!-- Block 6: 結合C -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/06_munch_david.webp" alt="ムンクとダヴィッド" class="background-img" loading="lazy">
+        <div class="art-label" style="top: 20%; right: 10%;">ムンク『叫び』</div>
+        <div class="art-label" style="bottom: 10%; left: 5%;">ダヴィッド『アルプスを越えるボナパルト』</div>
+    </div>
+
+    <!-- Block 7: 印象・日の出 -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/Monet-ImpressionSunrise.webp" alt="モネ" class="background-img" loading="lazy">
+        <div class="art-label" style="bottom: 10%; left: 10%;">モネ『印象・日の出』</div>
+    </div>
+
+    <!-- 透かし区切り 3 -->
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('images/bg/exhibitimages/Slave-ship.webp');">
+        見つめる瞳、隠された影
+    </div>
+
+    <!-- =========================================
+         【Chapter 3：肖像と精神】
+         ========================================= -->
+    
+    <!-- Block 8: モナリザ ＆ 真珠の耳飾りの少女 (1段2枚) -->
+    <div class="art-section-row">
+        <div class="art-half">
+            <img src="images/bg/exhibitimages/モナリザ.webp" alt="モナ・リザ" class="background-img" loading="lazy">
+            <div class="art-label" style="bottom: 10%; left: 5%;">ダ・ヴィンチ『モナ・リザ』</div>
+        </div>
+        <div class="art-half">
+            <img src="images/bg/exhibitimages/真珠の耳飾りの少女.webp" alt="真珠の耳飾りの少女" class="background-img" loading="lazy">
+            <div class="art-label" style="bottom: 10%; left: 5%;">フェルメール『真珠の耳飾りの少女』</div>
+        </div>
+    </div>
+
+    <!-- Block 9: ミュシャ ＆ ルドン ＆ ドガ (1段3枚) -->
+    <div class="art-section-row">
+        <div class="art-third">
+            <img src="images/bg/exhibitimages/10_mucha.webp" alt="ミュシャ" class="background-img" loading="lazy">
+            <div class="art-label" style="bottom: 5%; left: 5%;">ミュシャ『黄道十二宮』</div>
+        </div>
+        <div class="art-third">
+            <img src="images/bg/exhibitimages/11_redon.webp" alt="ルドン" class="background-img" loading="lazy">
+            <div class="art-label" style="bottom: 5%; left: 5%;">ルドン『眼は奇妙な気球のように無限に向かう』</div>
+        </div>
+        <div class="art-third">
+            <img src="images/bg/exhibitimages/Edgar_Germain_Hilaire_Degas_018エトワール.webp" alt="ドガ" class="background-img" loading="lazy">
+            <div class="art-label" style="bottom: 5%; left: 5%;">ドガ『エトワール』</div>
+        </div>
+    </div>
+
+    <!-- Block 10: 結合D -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/13_kuroda_jakuchu.webp" alt="黒田清輝と若冲" class="background-img" loading="lazy">
+        <div class="art-label" style="top: 15%; right: 10%;">黒田清輝『湖畔』</div>
+        <div class="art-label" style="bottom: 15%; left: 10%;">伊藤若冲『群鶏図』</div>
+    </div>
+
+    <!-- 透かし区切り 4 -->
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('images/bg/exhibitimages/Rembrandt_nightwatch_large.jpg');">
+        光の粒
+    </div>
+
+    <!-- =========================================
+         【Chapter 4：フィナーレへ】
+         ========================================= -->
+    
+    <!-- Block 11: スーラ -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/Ophelia.webp" alt="スーラ" class="background-img" loading="lazy">
+        <div class="art-label" style="bottom: 10%; right: 5%;">ミレイ『オフィーリア』</div>
+    </div>
+    <!-- Block 12: 葛飾応為 -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/Yoshiwara_Kōshisakinozu葛飾応為.webp" alt="葛飾応為" class="background-img" loading="lazy">
+        <div class="art-label" style="bottom: 10%; right: 5%;">葛飾応為『吉原格子先之図』</div>
+    </div>
+    <!-- 透かし区切り 5 -->
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('images/bg/exhibitimages/アテナイの学堂.webp');">
+        古今東西だまし絵
+    </div>
+
+    <!-- Block 12: アルチンボルド ＆ 歌川国芳 (1段2枚) -->
+    <div class="art-section-row">
+        <div class="art-half">
+            <img src="images/bg/exhibitimages/15_arcimboldo.webp" alt="アルチンボルド" class="background-img" loading="lazy">
+            <div class="art-label" style="bottom: 10%; left: 5%;">アルチンボルド『夏』</div>
+        </div>
+        <div class="art-half">
+            <img src="images/bg/exhibitimages/16_kuniyoshi.webp" alt="歌川国芳" class="background-img" loading="lazy">
+            <div class="art-label" style="bottom: 10%; left: 5%;">歌川国芳『みかけハこハゐがとんだいゝ人だ』</div>
+        </div>
+    </div>
+    <!-- 透かし区切り 5 -->
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('images/bg/exhibitimages/スーラグランドジャット島.webp');">
+        キャンバスを彩る、瞬間の色彩
+    </div>
+
+    <!-- Block 13: 結合E (フィナーレ) -->
+    <div class="art-section-full">
+        <img src="images/bg/exhibitimages/17_finale.webp" alt="フィナーレ" class="background-img" loading="lazy">
+        <div class="art-label" style="top: 10%; left: 10%;">ルノワール『ムーラン・ド・ラ・ギャレットの舞踏会』</div>
+        <div class="art-label" style="bottom: 50%; left: 70%;">サージェントの『カーネーション、リリー、リリー、ローズ』</div>
+        <div class="art-label" style="bottom: 15%; left: 10%;">ドラクロワ『民衆を導く自由の女神』</div>
+    </div>
+
+    <!-- =========================================
+         【フッター】
+         ========================================= -->
+    <footer class="site-footer" style="background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('images/kamereon.webp');background-position: top center;">
+        <div class="footer-column">
+            <h3>UPCOMING EXHIBITIONS</h3>
+            <ul>
+                <li>2026.11 - 「見えないカメレオン展」</li>
+                <li>2026.12 - 「名画に潜む動物たち」</li>
+                <li>2027.01 - 「息をひそめる名画たち」</li>
+            </ul>
+        </div>
+        <div class="footer-column" style="text-align: right;">
+            <h3>ABOUT US</h3>
+            <p>
+                めっちゃカメレオン プロジェクト<br>
+                ut.code();<br>
+                © 2026 KOKONTOUZAI Art Museum. All rights reserved.
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>
