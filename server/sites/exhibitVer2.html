@@ -132,42 +132,48 @@
         }
 
         /* すかし背景の区切り文字（ポエム領域） */
-        .blur-divider {
-            text-align: center;
-            padding: 100px 20px;
-            background-color: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-top: 1px solid rgba(255,255,255,0.05);
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            font-size: 16px;
-            letter-spacing: 6px;
-            color: #c9ba9b;
+        .blur-divider { 
+            text-align: center; 
+            padding: 120px 20px; 
+            background-size: cover; 
+            background-position: center center; /* 常に画像のど真ん中を表示 */
+            /* background-attachment: fixed; ← ★極端なズームの原因になるので削除（またはコメントアウト）しました */
+            border-top: 1px solid rgba(255,255,255,0.1); 
+            border-bottom: 1px solid rgba(255,255,255,0.1); 
+            font-size: 25px; 
+            letter-spacing: 6px; 
+            color: #c9ba9b; 
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8); 
+            margin: 20px 0;
         }
 
         /* =========================================
            5. フッター
            ========================================= */
-        .site-footer {
-            background-color: #030507; 
-            padding: 80px 60px;
+        .site-footer { 
+            padding: 80px 60px; 
             display: flex; 
             justify-content: space-between; 
-            font-size: 13px;
-            color: #888;
-            font-family: Arial, sans-serif;
+            font-size: 13px; 
+            color: #ccc; /* 背景に絵が入るので少し文字を明るく */
+            font-family: Arial, sans-serif; 
+            background-size: cover; 
+            background-position: center;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.9); /* 文字が埋もれないように影を追加 */
+            margin-top: 20px; 
         }
-        .footer-column h3 {
-            color: #fff;
-            margin-top: 0;
-            margin-bottom: 25px;
-            font-size: 14px;
-            letter-spacing: 3px;
+        .footer-column h3 { 
+            color: #fff; 
+            margin-top: 0; 
+            margin-bottom: 25px; 
+            font-size: 14px; 
+            letter-spacing: 3px; 
+            text-shadow: 0 2px 5px rgba(0,0,0,0.9);
         }
-        .footer-column p, .footer-column ul {
-            line-height: 2;
-            margin: 0;
-            padding: 0;
+        .footer-column p, .footer-column ul { 
+            line-height: 2; 
+            margin: 0; 
+            padding: 0; 
             list-style: none; 
         }
     </style>
@@ -178,9 +184,9 @@
     <header class="site-header">
         <h1 class="site-logo">古今東西美術館</h1>
         <nav class="header-nav">
-            <a href="#" class="nav-link">EXHIBITIONS</a>
-            <a href="#" class="nav-link">COLLECTION</a>
-            <a href="#" class="ticket-btn">TICKETS</a>
+            <a href="javascript:void(0)" class="nav-link">EXHIBITIONS</a>
+            <a href="javascript:void(0)" class="nav-link">COLLECTION</a>
+            <a href="javascript:void(0)" class="ticket-btn">TICKETS</a>
         </nav>
     </header>
 
@@ -197,7 +203,7 @@
     </div>
 
     <!-- 透かし区切り 1 -->
-    <div class="blur-divider">
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('images/bg/exhibitimages/hamamatsuzubyobu.webp');">
         大地と人の営み
     </div>
 
@@ -224,7 +230,7 @@
     </div>
 
     <!-- 透かし区切り 2 -->
-    <div class="blur-divider">
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('images/bg/exhibitimages/Edouard_Manet\,_A_Bar_at_the_Folies-Bergère\(マネ\).webp');">
         日常に潜むドラマ
     </div>
 
@@ -253,7 +259,7 @@
     </div>
 
     <!-- 透かし区切り 3 -->
-    <div class="blur-divider">
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('images/bg/exhibitimages/Slave-ship.webp');">
         見つめる瞳、隠された影
     </div>
 
@@ -297,7 +303,7 @@
     </div>
 
     <!-- 透かし区切り 4 -->
-    <div class="blur-divider">
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('images/bg/exhibitimages/Rembrandt_nightwatch_large.jpg');">
         光の粒
     </div>
 
@@ -307,8 +313,8 @@
     
     <!-- Block 11: スーラ -->
     <div class="art-section-full">
-        <img src="images/bg/exhibitimages/スーラグランドジャット島.webp" alt="スーラ" class="background-img" loading="lazy">
-        <div class="art-label" style="bottom: 10%; right: 5%;">スーラ『グランド・ジャット島の日曜日の午後』</div>
+        <img src="images/bg/exhibitimages/Ophelia.webp" alt="スーラ" class="background-img" loading="lazy">
+        <div class="art-label" style="bottom: 10%; right: 5%;">ミレイ『オフィーリア』</div>
     </div>
     <!-- Block 12: 葛飾応為 -->
     <div class="art-section-full">
@@ -316,7 +322,7 @@
         <div class="art-label" style="bottom: 10%; right: 5%;">葛飾応為『吉原格子先之図』</div>
     </div>
     <!-- 透かし区切り 5 -->
-    <div class="blur-divider">
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('images/bg/exhibitimages/アテナイの学堂.webp');">
         古今東西だまし絵
     </div>
 
@@ -331,23 +337,29 @@
             <div class="art-label" style="bottom: 10%; left: 5%;">歌川国芳『みかけハこハゐがとんだいゝ人だ』</div>
         </div>
     </div>
+    <!-- 透かし区切り 5 -->
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url('images/bg/exhibitimages/スーラグランドジャット島.webp');">
+        キャンバスを彩る、瞬間の色彩
+    </div>
 
     <!-- Block 13: 結合E (フィナーレ) -->
     <div class="art-section-full">
         <img src="images/bg/exhibitimages/17_finale.webp" alt="フィナーレ" class="background-img" loading="lazy">
-        <div class="art-label" style="top: 10%; left: 10%;">ルノワール『ムーラン・ド・ラ・ギャレットの舞踏会』など</div>
+        <div class="art-label" style="top: 10%; left: 10%;">ルノワール『ムーラン・ド・ラ・ギャレットの舞踏会』</div>
+        <div class="art-label" style="bottom: 50%; left: 70%;">サージェントの『カーネーション、リリー、リリー、ローズ』</div>
+        <div class="art-label" style="bottom: 15%; left: 10%;">ドラクロワ『民衆を導く自由の女神』</div>
     </div>
 
     <!-- =========================================
          【フッター】
          ========================================= -->
-    <footer class="site-footer">
+    <footer class="site-footer" style="background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('images/kamereon.webp');background-position: top center;">
         <div class="footer-column">
             <h3>UPCOMING EXHIBITIONS</h3>
             <ul>
                 <li>2026.11 - 「見えないカメレオン展」</li>
                 <li>2026.12 - 「名画に潜む動物たち」</li>
-                <li>2027.01 - 「息をひそめる名作たち」</li>
+                <li>2027.01 - 「息をひそめる名画たち」</li>
             </ul>
         </div>
         <div class="footer-column" style="text-align: right;">
