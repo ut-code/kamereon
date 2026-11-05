@@ -10,21 +10,16 @@ const percent = (value) => `${Math.round(Math.max(0, Math.min(1, value)) * 100)}
 const AVAILABLE_SITES = Object.entries(SITES)
   .filter(([, site]) => site && typeof site.title === 'string' && typeof site.file === 'string')
   .map(([id, site]) => ({ id, ...site }));
-const BODY_OPTIONS = [
-  { id: 'slim', label: '細め', width: 18, limb: 8, ready: false },
-  { id: 'standard', label: '標準', width: 28, limb: 10, ready: true },
-  { id: 'round', label: '太め', width: 48, limb: 14, ready: false },
-];
 const HOME_STEPS = new Set(['hide-site', 'hide-body', 'find-site', 'find-ready']);
 const homeHref = (step, values = {}) => `#/?${new URLSearchParams({ step, ...values })}`;
 
-function readHomeRoute(previousBody) {
+function readHomeRoute() {
   const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
   const step = params.get('step');
   const site = AVAILABLE_SITES.find((entry) => entry.id === params.get('site'));
-  // ページ選択へ戻ったときは、履歴に残った古い指定より現在の選択を優先する。
-  const requestedBody = step === 'hide-body' ? params.get('body') ?? previousBody : previousBody ?? params.get('body');
-  const body = BODY_OPTIONS.find((entry) => entry.id === requestedBody)?.id || 'standard';
+  // 以前の体型選択画面へのリンクだけ、選択済みの体型を引き継ぐ。
+  const requestedBody = params.get('body');
+  const body = ['slim', 'standard', 'round'].includes(requestedBody) ? requestedBody : 'standard';
   if (!HOME_STEPS.has(step)) return { step: '', site: null, body };
   if ((step === 'hide-body' || step === 'find-ready') && !site) {
     return { step: step === 'hide-body' ? 'hide-site' : 'find-site', site: null, body };
@@ -34,14 +29,8 @@ function readHomeRoute(previousBody) {
 
 function useHomeRoute() {
   const [route, setRoute] = useState(() => readHomeRoute());
-  const bodyRef = useRef(route.body);
   useEffect(() => {
-    const update = () => {
-      // 最後に選んだ体型を、ページ選択やホームに戻っても保つ。
-      const next = readHomeRoute(bodyRef.current);
-      bodyRef.current = next.body;
-      setRoute(next);
-    };
+    const update = () => setRoute(readHomeRoute());
     window.addEventListener('hashchange', update);
     return () => window.removeEventListener('hashchange', update);
   }, []);
@@ -68,21 +57,6 @@ function SitePreview({ site }) {
   </div>;
 }
 
-function BodyPreview({ option }) {
-  const left = 44 - option.width / 2;
-  const right = 44 + option.width / 2;
-  const legSpread = option.id === 'round' ? 16 : option.id === 'slim' ? 8 : 12;
-  return <svg width="116" height="220" viewBox="0 0 88 168" aria-hidden="true" focusable="false">
-    <g fill="currentColor" stroke="currentColor" strokeLinecap="round">
-      <circle cx="44" cy="16" r="12" stroke="none" />
-      <path d="M44 24V36" strokeWidth="9" />
-      <rect x={left} y="30" width={option.width} height="58" rx={option.id === 'round' ? 18 : 9} stroke="none" />
-      <path d={`M${left - 3} 38L${left - 9} 90M${right + 3} 38L${right + 9} 90`} strokeWidth={option.limb} />
-      <path d={`M${44 - legSpread} 82V156M${44 + legSpread} 82V156`} strokeWidth={option.limb + 1} />
-    </g>
-  </svg>;
-}
-
 function ModeIcon({ mode }) {
   return <svg className="home-mode-icon" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     {mode === 'find' ? <>
@@ -96,10 +70,10 @@ function ModeIcon({ mode }) {
   </svg>;
 }
 
-function FlowHeader({ mode, step, backHref }) {
+function FlowHeader({ mode, backHref }) {
   return <header className="home-flow-header">
     <a className="button" href={backHref || '#/'}>{backHref ? '← ページ選択へ' : '← ホームへ'}</a>
-    <span className="home-flow-label" data-mode={mode}>{mode === 'hide' ? `隠す　${step} / 2` : '見つける'}</span>
+    <span className="home-flow-label" data-mode={mode}>{mode === 'hide' ? '隠す' : '見つける'}</span>
     {backHref && <a className="home-flow-home" href="#/">ホームへ</a>}
   </header>;
 }
@@ -108,11 +82,11 @@ function HomeFlow({ route }) {
   if (route.step === 'hide-site' || route.step === 'find-site') {
     const hiding = route.step === 'hide-site';
     return <main className="home-screen home-flow-screen">
-      <FlowHeader mode={hiding ? 'hide' : 'find'} step={1} />
+      <FlowHeader mode={hiding ? 'hide' : 'find'} />
       <div className="home-flow-heading"><h1>Webページを選択</h1></div>
       <div className="home-site-options">
         {AVAILABLE_SITES.map((site) => <a className="home-site-option" key={site.id}
-          href={homeHref(hiding ? 'hide-body' : 'find-ready', { site: site.id, ...(hiding ? { body: route.body } : {}) })}>
+          href={hiding ? `#/hide?${new URLSearchParams({ site: site.id })}` : homeHref('find-ready', { site: site.id })}>
           <SitePreview site={site} />
           <div className="home-site-info"><h2>{site.title}</h2></div>
           <span className="button primary">選択する →</span>
@@ -121,33 +95,6 @@ function HomeFlow({ route }) {
           <div className="home-site-preview home-site-preview-empty" aria-hidden="true" />
           <div className="home-site-info"><h2>準備中</h2></div>
         </div>)}
-      </div>
-    </main>;
-  }
-
-  if (route.step === 'hide-body') {
-    const selected = BODY_OPTIONS.find((option) => option.id === route.body);
-    // 他担当との接続点：site と body（slim / standard / round）を編集画面へ渡す。
-    // 現在の Hide.jsx は body をまだ受け取らないため、標準以外は準備中と表示する。
-    const editHref = `#/hide?${new URLSearchParams({ site: route.site.id, body: selected.id })}`;
-    const backHref = homeHref('hide-site', { site: route.site.id, body: selected.id });
-    return <main className="home-screen home-flow-screen">
-      <FlowHeader mode="hide" step={2} backHref={backHref} />
-      <div className="home-flow-heading"><h1>体型を選択</h1></div>
-      <div className="home-selected-site"><strong>{route.site.title}</strong></div>
-      <fieldset className="home-body-options">
-        <legend className="home-sr-only">カメレオンの体型</legend>
-        {BODY_OPTIONS.map((option) => <label className={`home-body-option${selected.id === option.id ? ' is-selected' : ''}`} key={option.id}>
-          <input className="home-sr-only" type="radio" name="home-body" value={option.id} checked={selected.id === option.id}
-            onChange={() => window.location.replace(homeHref('hide-body', { site: route.site.id, body: option.id }))} />
-          <span className="home-body-art"><BodyPreview option={option} /></span>
-          <strong>{option.label}</strong>
-          <span className="home-body-status"><span className="home-body-selected" aria-hidden="true">{selected.id === option.id ? '●' : '○'}</span>{!option.ready && <span className="home-coming-soon">準備中</span>}</span>
-        </label>)}
-      </fieldset>
-      <div className="home-choice-footer">
-        <a className="button primary" href={editHref}>編集へ →</a>
-        <p className="home-flow-note">ゲームでは現在、標準体型のみ対応</p>
       </div>
     </main>;
   }
@@ -246,7 +193,7 @@ function Rules({ open, onClose }) {
         <h3>隠す</h3>
         <ol>
           <li>隠すWebページを選ぶ</li>
-          <li>細め・標準・太めから体型を選ぶ</li>
+          <li>隠れる画面で、細め・標準・太めから体型を選ぶ</li>
           <li>配置して色を塗り、背景に溶け込ませる</li>
           <li>「ここに隠れる！」で公開する</li>
         </ol>
@@ -277,6 +224,12 @@ export default function Home({ siteId = 'utcode' }) {
   useEffect(() => { setRulesOpen(false); }, [route.step]);
 
   useEffect(() => {
+    if (route.step === 'hide-body') {
+      window.location.replace(`#/hide?${new URLSearchParams({ site: route.site.id, body: route.body })}`);
+    }
+  }, [route.step, route.site?.id, route.body]);
+
+  useEffect(() => {
     let active = true;
     setRanking(null);
     setFinderRanking(null);
@@ -303,6 +256,7 @@ export default function Home({ siteId = 'utcode' }) {
     return () => { active = false; };
   }, [siteId, reload]);
 
+  if (route.step === 'hide-body') return <main className="home-screen home-flow-screen"><p role="status">隠れる画面を開いています…</p></main>;
   if (route.step) return <HomeFlow route={route} />;
 
   return (
@@ -320,7 +274,7 @@ export default function Home({ siteId = 'utcode' }) {
         <a className="home-mode home-mode-find" href={homeHref('find-site')}>
           <div><span className="home-mode-label"><ModeIcon mode="find" /><strong>見つける</strong></span><span className="home-mode-arrow" aria-hidden="true">→</span></div>
         </a>
-        <a className="home-mode home-mode-hide" href={homeHref('hide-site', { body: route.body })}>
+        <a className="home-mode home-mode-hide" href={homeHref('hide-site')}>
           <div><span className="home-mode-label"><ModeIcon mode="hide" /><strong>隠す</strong></span><span className="home-mode-arrow" aria-hidden="true">→</span></div>
         </a>
       </nav>
