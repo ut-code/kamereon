@@ -43,6 +43,7 @@ export default function Find({ siteId }) {
   const masksRef = useRef({});
   const pointerPos = useRef({ x: -9999, y: -9999 });
   const hideScoresRef = useRef({});
+  const savedGameRef = useRef(null);
   const [stageReady, setStageReady] = useState(false);
   const [phase, setPhase] = useState('intro'); // intro | starting | playing | over | empty
   const [game, setGame] = useState(null);
@@ -54,11 +55,12 @@ export default function Find({ siteId }) {
   const [zoom, setZoom] = useState(1);
   const [panelOpen, setPanelOpen] = useState(true);
   const [error, setError] = useState('');
+  const [saveAttempt, setSaveAttempt] = useState(0);
   const [isCoolingDown, setIsCoolingDown] = useState(false);
   const [animatingFound, setAnimatingFound] = useState([]);
   const [showFound, setShowFound] = useState(false);
 
-  const remaining = Math.max(0, ((deadline - now) / 1000)/180);
+  const remaining = Math.max(0, (deadline - now) / 1000);
 
   const start = async () => {
     setPhase('starting');
@@ -73,7 +75,7 @@ export default function Find({ siteId }) {
       g.chameleons.forEach((c) => {
         hideScoresRef.current[c.id] = {
           currentScore: 0,
-          wasVisible: true, // 出題された時点で画面内に存在するため true
+          wasVisible: false,
           isFound: false,
         };
       });
@@ -102,30 +104,23 @@ export default function Find({ siteId }) {
   }, [phase]);
 
   useEffect(() => {
-    if (phase !== 'playing') return;
-
-    if (remaining <= 0 || found.length === game.chameleons.length) {
-      setPhase('over');
-
-      // 【隠れる側】最後まで見つからなかった個体に100点加点し、スコアを四捨五入して一括送信
-      const finalScores = {};
-      game.chameleons.forEach((c) => {
-        const state = hideScoresRef.current[c.id];
-        if (state) {
-          if (!state.isFound) {
-            state.currentScore += 100; // 完走ボーナス
-          }
-          finalScores[c.id] = {
-            score: Math.round(state.currentScore),
-            wasVisible: state.wasVisible,
-          };
-        }
-      });
-
-      // サーバーへ終了時一括送信
-      api.reportHideScores(game.gameId, finalScores).catch(() => {});
-    }
+    if (phase === 'playing' && (remaining <= 0 || found.length === game.chameleons.length)) setPhase('over');
   }, [phase, remaining, found, game]);
+
+  // 終了ボタン・全員発見・時間切れで共通の保存処理を使う。
+  useEffect(() => {
+    if (phase !== 'over' || savedGameRef.current === game.gameId) return;
+    savedGameRef.current = game.gameId;
+    setError('');
+    const finalScores = Object.fromEntries(Object.entries(hideScoresRef.current).map(([id, state]) => [id, {
+      score: Math.round(state.currentScore),
+      wasVisible: state.wasVisible,
+    }]));
+    api.reportHideScores(game.gameId, finalScores).catch(() => {
+      savedGameRef.current = null;
+      setError('記録を保存できませんでした。');
+    });
+  }, [phase, game, saveAttempt]);
 
   const onStageClick = (e) => {
     if (phase !== 'playing' || isCoolingDown) return;
@@ -141,10 +136,11 @@ export default function Find({ siteId }) {
       setFound((f) => [...f, hit.id]);
       const hState = hideScoresRef.current[hit.id];
       if (hState) {
+        hState.wasVisible = true;
         hState.currentScore *= 0.5;
         hState.isFound = true;
       }
-      const finderScore = Math.round(100 + 20 * remaining);
+      const finderScore = Math.round(100 + 20 * Math.max(0, (deadline - Date.now()) / 1000) / game.timeLimit);
       api.reportFound(game.gameId, hit.id, finderScore).catch(() => {});
       setAnimatingFound((af) => [...af, hit.id]);
       setTimeout(() => {
@@ -186,7 +182,7 @@ export default function Find({ siteId }) {
       }
     });
 
-    const interval = setInterval(() => {
+    const updateScores = (addScore) => {
       if (!stageRef.current) return;
       const viewRect = stageRef.current.viewRect();
 
@@ -212,10 +208,12 @@ export default function Find({ siteId }) {
           const ratio = Math.max(0, Math.min(1, 1 - dist / maxDist));
           const multiplier = 1 + 2 * ratio;
 
-          state.currentScore += 1 * multiplier;
+          if (addScore) state.currentScore += multiplier;
         }
       });
-    }, 1000);
+    };
+    updateScores(false);
+    const interval = setInterval(() => updateScores(true), 1000);
 
     return () => clearInterval(interval);
   }, [phase, game]);
@@ -394,6 +392,7 @@ export default function Find({ siteId }) {
       {over && panelOpen && (
         <aside className="result-panel">
           <h2>{found.length === total ? '全員発見！🎉' : remaining <= 0 ? 'タイムアップ！' : '結果'}</h2>
+          {error && <div role="alert"><p className="error">{error}</p><button onClick={() => setSaveAttempt((n) => n + 1)}>もう一度保存する</button></div>}
           <p className="result-summary">
             {total}人中 <strong>{found.length}人</strong> 見つけました
             {found.length === total && `（残り ${fmt(remaining)}）`}

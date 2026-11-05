@@ -136,8 +136,17 @@ app.post('/api/games/:gameId/found', (req, res) => {
 });
 
 app.post('/api/games/:gameId/finish-hide-scores', (req, res) => {
-  const { hideScores = {} } = req.body ?? {}; // { [chameleonId]: { score: 85, wasVisible: true } }
-  
+  const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (game.finished) return res.json({ ok: true });
+  const { hideScores = {} } = req.body ?? {};
+  const ids = JSON.parse(game.chameleon_ids);
+  const entries = Object.entries(hideScores ?? {});
+  if (entries.length !== ids.length || entries.some(([id, data]) => !ids.includes(id) || !data ||
+    typeof data.wasVisible !== 'boolean' || !Number.isFinite(data.score) || data.score < 0)) {
+    return res.status(400).json({ error: 'invalid hide scores' });
+  }
+
   const updateStmt = db.prepare(`
     UPDATE chameleons 
     SET total_hide_score = total_hide_score + ?,
@@ -145,11 +154,17 @@ app.post('/api/games/:gameId/finish-hide-scores', (req, res) => {
     WHERE id = ?
   `);
 
-  for (const [id, data] of Object.entries(hideScores)) {
-    if (data.wasVisible) {
-      const roundedScore = Math.round(data.score ?? 0);
-      updateStmt.run(roundedScore, id);
+  // 評価の加算と終了フラグを一括保存し、再送時の二重計上を防ぐ。
+  db.exec('BEGIN');
+  try {
+    for (const [id, data] of entries) {
+      if (data.wasVisible) updateStmt.run(Math.round(data.score), id);
     }
+    db.prepare('UPDATE games SET finished = 1 WHERE id = ?').run(game.id);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
   }
   res.json({ ok: true });
 });
@@ -167,10 +182,10 @@ app.get('/api/rankings/finder', (_req, res) => {
 
 app.get('/api/rankings/hider', (_req, res) => {
   const rows = db.prepare(`
-    SELECT id, name, site, image, total_hide_score, view_count,
-           ROUND(total_hide_score / view_count) AS avg_score
+    SELECT id, name, site, searched, found, total_hide_score, view_count,
+           total_hide_score * 1.0 / view_count AS avg_score
     FROM chameleons 
-    WHERE view_count > 2  AND (total_hide_score / view_count) > 0
+    WHERE view_count >= 3
     ORDER BY avg_score DESC, view_count DESC 
     LIMIT 10
   `).all();

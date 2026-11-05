@@ -179,7 +179,7 @@ function RankingCard({ mode, entries, loading, failed, period }) {
       ) : failed ? (
         <p className="home-ranking-empty">ランキングを表示できませんでした。</p>
       ) : visible.length === 0 ? (
-        <p className="home-ranking-empty">記録はまだありません</p>
+        <p className="home-ranking-empty">{hiding ? '評価が3回以上のカメレオンはまだいません' : '記録はまだありません'}</p>
       ) : (
         <ol className="home-ranking-list">
           {visible.map((entry, index) => (
@@ -188,7 +188,7 @@ function RankingCard({ mode, entries, loading, failed, period }) {
               <span className="home-ranking-avatar" aria-hidden="true">{Array.from(entry.name || 'カ')[0]}</span>
               <div className="home-ranking-person">
                 <span className="home-ranking-name" title={entry.name}>{entry.name}</span>
-                <span className="home-ranking-detail">{hiding ? `出題${number(entry.searched)}回・発見${number(entry.found)}回` : ``}</span>
+                <span className="home-ranking-detail">{hiding ? `評価${number(entry.view_count)}回・出題${number(entry.searched)}回・発見${number(entry.found)}回` : ``}</span>
               </div>
               <div className="home-ranking-score">
                 <strong>{hiding ? `${number(entry.score)}点` : `${number(entry.found)}点`}</strong>
@@ -290,7 +290,6 @@ export default function Home({ siteId = 'utcode' }) {
         setRanking(hiderData.map((c) => ({
           ...c,
           score: Math.round(c.avg_score),
-          searched: c.view_count,
         })));
         setFinderRanking(finderData.map((g) => ({
           id: g.id,
@@ -419,7 +418,7 @@ export default function Home({ siteId = 'utcode' }) {
               <p className="home-score-note">※制限時間3分、基本点100点、早さのボーナス最大20点、案1の距離倍率1〜3倍、案2の毎秒1点、発見時の減点率50％は仮の値です。試遊で調整します。</p>
             </div>
           </details>
-          <p>出題・スコア計算は文化祭向けの仕様案です。現在は最大5体をランダムに出題し、隠れ上手ランキングは隠れ率で集計しています。平均点によるランキングとデイリーランキングは準備中です。</p>
+          <p>現在は最大5体をランダムに出題し、隠れ上手ランキングは通算3回以上評価されたカメレオンの平均点で集計しています。デイリーランキングは準備中です。</p>
         </section>
       </section>
 
