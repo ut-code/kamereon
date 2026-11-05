@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import SiteStage from '../components/SiteStage.jsx';
+import Icon from '../components/Icon.jsx';
 import { api } from '../api.js';
 import { getMyIds } from '../myChameleons.js';
 
 const ZOOMS = [1, 1.5, 2, 3];
 const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
 const DECOY_PENALTY_SEC = 10; // デコイをクリックしたときに減る時間
-const CLICK_COOLDOWN_MS = 500; // クリックのクールダウン時間
+const CLICK_COOLDOWN_MS = 5000; // フィールドをクリックしたあとのクールタイム
+const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。styles.css の .stage-overlay.seeking のカーソルと合わせる
+const SHADOW_MIN_OFFSET = 4; // 影のずれの最小値 (ページpx)
+const SHADOW_MAX_EXTRA = 10; // 光源から離れるほど増える影のずれの上限 (ページpx)
+const SHADOW_DIST_RATIO = 0.15; // 光源からの距離に対する影のずれの割合
 
 // 画像の不透明ピクセルをクリックしたかどうかを判定するためのマスクを作る
 async function loadAlphaMask(src) {
@@ -36,6 +41,38 @@ function hits(c, mask, px, py) {
   return false;
 }
 
+// 懐中電灯（照準）に照らされたときの影。照準の円と重なった部分だけ表示する
+function FlashlightShadow({ obj, aim, radius }) {
+  // 照準の円とカメレオンの矩形が重なっていなければ何も出さない
+  const nx = Math.max(obj.x, Math.min(aim.x, obj.x + obj.w));
+  const ny = Math.max(obj.y, Math.min(aim.y, obj.y + obj.h));
+  if ((aim.x - nx) ** 2 + (aim.y - ny) ** 2 > radius * radius) return null;
+
+  // 影は光源（照準の中心）から遠ざかる向きにずらす
+  const vx = obj.x + obj.w / 2 - aim.x;
+  const vy = obj.y + obj.h / 2 - aim.y;
+  const dist = Math.hypot(vx, vy);
+  const [ux, uy] = dist > 0 ? [vx / dist, vy / dist] : [Math.SQRT1_2, Math.SQRT1_2];
+  const len = SHADOW_MIN_OFFSET + Math.min(dist * SHADOW_DIST_RATIO, SHADOW_MAX_EXTRA);
+  const dx = ux * len;
+  const dy = uy * len;
+
+  return (
+    <img
+      className="flashlight-shadow"
+      src={obj.image}
+      alt=""
+      draggable={false}
+      style={{
+        left: dx,
+        top: dy,
+        // clip-path は影要素自身の座標系なので、照準の中心を影要素基準に直す
+        clipPath: `circle(${radius}px at ${aim.x - obj.x - dx}px ${aim.y - obj.y - dy}px)`,
+      }}
+    />
+  );
+}
+
 const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
 export default function Find({ siteId }) {
@@ -53,14 +90,27 @@ export default function Find({ siteId }) {
   const [misses, setMisses] = useState([]);
   const [tripped, setTripped] = useState([]); // 引っかかったデコイの key
   const [zoom, setZoom] = useState(1);
-  const [panelOpen, setPanelOpen] = useState(true);
   const [error, setError] = useState('');
+  const [cooldownUntil, setCooldownUntil] = useState(0); // この時刻まではクリックできない
   const [saveAttempt, setSaveAttempt] = useState(0);
-  const [isCoolingDown, setIsCoolingDown] = useState(false);
   const [animatingFound, setAnimatingFound] = useState([]);
   const [showFound, setShowFound] = useState(false);
+  const [aim, setAim] = useState(null); // 照準の中心（ページ座標）。ステージ外なら null
+  const pointerRef = useRef(null); // 最後のマウス位置（クライアント座標）
+  const aimFrameRef = useRef(null);
+
+  // マウス移動・スクロールのたびに照準位置を更新する（1フレームに1回まで）
+  const scheduleAim = () => {
+    if (aimFrameRef.current != null) return;
+    aimFrameRef.current = requestAnimationFrame(() => {
+      aimFrameRef.current = null;
+      const p = pointerRef.current;
+      setAim(p && stageRef.current ? stageRef.current.toStagePoint(p.x, p.y) : null);
+    });
+  };
 
   const remaining = Math.max(0, (deadline - now) / 1000);
+  const cooldownRemaining = Math.max(0, (cooldownUntil - now) / 1000);
 
   const start = async () => {
     setPhase('starting');
@@ -96,6 +146,17 @@ export default function Find({ siteId }) {
     }
   };
 
+  // スクロールやズームでマウスの下のページ位置が変わったときも照準を追従させる
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    document.addEventListener('scroll', scheduleAim, true);
+    return () => {
+      document.removeEventListener('scroll', scheduleAim, true);
+      if (aimFrameRef.current != null) cancelAnimationFrame(aimFrameRef.current);
+      aimFrameRef.current = null;
+    };
+  }, [phase]);
+
   // タイマー
   useEffect(() => {
     if (phase !== 'playing') return;
@@ -123,7 +184,12 @@ export default function Find({ siteId }) {
   }, [phase, game, saveAttempt]);
 
   const onStageClick = (e) => {
-    if (phase !== 'playing' || isCoolingDown) return;
+    if (phase !== 'playing' || Date.now() < cooldownUntil) return;
+    const startCooldown = () => {
+      const until = Date.now() + CLICK_COOLDOWN_MS;
+      setCooldownUntil(until);
+      setNow(Date.now());
+    };
     const { x, y } = stageRef.current.toStagePoint(e.clientX, e.clientY);
     pointerPos.current = { x, y };
     const hit = game.chameleons.find(
@@ -132,6 +198,7 @@ export default function Find({ siteId }) {
     const decoy = !hit && game.decoys.find(
       (d) => !tripped.includes(d.key) && hits(d, masksRef.current[d.key], x, y),
     );
+    startCooldown(); // 当たり・デコイ・外れのどれでもクールタイムを発動する
     if (hit) {
       setFound((f) => [...f, hit.id]);
       const hState = hideScoresRef.current[hit.id];
@@ -147,16 +214,12 @@ export default function Find({ siteId }) {
         setAnimatingFound((a) => a.filter((id) => id !== hit.id));
       }, 2000);
     } else if (decoy) {
-      setIsCoolingDown(true);
-      setTimeout(() => setIsCoolingDown(false), CLICK_COOLDOWN_MS);
       setTripped((t) => [...t, decoy.key]);
       setDeadline((d) => d - DECOY_PENALTY_SEC * 1000);
       const miss = { id: Date.now() + Math.random(), x, y, decoy: true };
       setMisses((m) => [...m, miss]);
       setTimeout(() => setMisses((m) => m.filter((v) => v.id !== miss.id)), 1200);
     } else {
-      setIsCoolingDown(true);
-      setTimeout(() => setIsCoolingDown(false), CLICK_COOLDOWN_MS);
       const miss = { id: Date.now() + Math.random(), x, y };
       setMisses((m) => [...m, miss]);
       setTimeout(() => setMisses((m) => m.filter((v) => v.id !== miss.id)), 700);
@@ -165,6 +228,8 @@ export default function Find({ siteId }) {
 
   const total = game?.chameleons.length ?? 0;
   const over = phase === 'over';
+  const showShadow = phase === 'playing' && aim;
+  const shadowRadius = RETICLE_RADIUS_PX / zoom;
 
   const onMouseMove = (e) => {
     if (stageRef.current) {
@@ -273,12 +338,23 @@ export default function Find({ siteId }) {
               </div>
             );
           })()}
+          {/* 終了後はタイマーの代わりに結果を表示する */}
+          {over && (
+            <span className={`game-over-label ${remaining <= 0 ? 'time-up' : ''}`}>
+              {remaining <= 0 ? 'タイムアップ！' : found.length === total ? '全員発見！' : '終了'}
+            </span>
+          )}
         </div>
 
         {/* 右側グループ：人型アイコン、カウント、各ボタン */}
         <div className="toolbar-right">
           {game && phase === 'playing' && (
             <>
+              {cooldownRemaining > 0 && (
+                <span className="hud-cooldown" title="クールタイム中はクリックできません">
+                  <Icon name="hourglass" /> {Math.ceil(cooldownRemaining)}秒
+                </span>
+              )}
               <div className="hud-person-group">
                 {Array.from({ length: total }).map((_, i) => {
                   const isFound = i < found.length;
@@ -298,8 +374,8 @@ export default function Find({ siteId }) {
           )}
 
           <div className="tool-group toolbar-buttons">
-            {over && <button onClick={() => setPanelOpen((v) => !v)}>結果を{panelOpen ? '隠す' : '見る'}</button>}
             {over && <a className="button primary" href={`#/find?site=${siteId}&t=${Date.now()}`}>もう一度</a>}
+            {over && error && <><span className="error" role="alert">{error}</span><button onClick={() => setSaveAttempt((n) => n + 1)}>もう一度保存する</button></>}
             {phase === 'playing' && (
               <button onClick={() => setShowFound((v) => !v)}>
                 {showFound ? '発見済みを隠す' : '発見済みを表示'}
@@ -315,7 +391,23 @@ export default function Find({ siteId }) {
         siteId={siteId}
         zoom={zoom}
         onReady={() => setStageReady(true)}
-        overlayProps={{ onClick: onStageClick, onMouseMove, className: `stage-overlay ${phase === 'playing' ? 'seeking' : ''}` }}
+        overlayProps={{
+          onClick: onStageClick,
+          // ダブルクリック以降のクリックでブラウザが範囲選択を始めないようにする
+          onMouseDown: (e) => {
+            if (e.detail > 1) e.preventDefault();
+          },
+          onMouseMove: (e) => {
+            onMouseMove(e);
+            pointerRef.current = { x: e.clientX, y: e.clientY };
+            scheduleAim();
+          },
+          onMouseLeave: () => {
+            pointerRef.current = null;
+            scheduleAim();
+          },
+          className: `stage-overlay ${phase === 'playing' ? 'seeking' : ''}`,
+        }}
       >
         {game?.chameleons.map((c) => {
           const isFound = found.includes(c.id);
@@ -326,10 +418,10 @@ export default function Find({ siteId }) {
           return (
             <div
               key={c.id}
-              className={`chameleon-slot ${isFound ? 'found' : ''} ${isAnimating ? 'blinking' : ''}`}
-              //className={`chameleon-slot ${isFound ? 'found' : ''} ${over && !isFound ? 'revealed' : ''}`}
+              className={`chameleon-slot ${isFound ? 'found' : ''} ${over && !isFound ? 'missed' : ''} ${isAnimating ? 'blinking' : ''}`}
               style={{ left: c.x, top: c.y, width: c.w, height: c.h }}
             >
+              {showShadow && !isFound && <FlashlightShadow obj={c} aim={aim} radius={shadowRadius} />}
               <img src={c.image} alt="" draggable={false} />
               {(isFound || over) && <span className="slot-label">{c.name}</span>}
             </div>
@@ -343,6 +435,7 @@ export default function Find({ siteId }) {
               className={`chameleon-slot decoy ${isTripped ? 'tripped' : ''} ${over ? 'exposed' : ''}`}
               style={{ left: d.x, top: d.y, width: d.w, height: d.h }}
             >
+              {showShadow && !isTripped && <FlashlightShadow obj={d} aim={aim} radius={shadowRadius} />}
               <img src={d.image} alt="" draggable={false} />
               {(isTripped || over) && <span className="slot-label">デコイ（{d.owner}）</span>}
             </div>
@@ -389,34 +482,7 @@ export default function Find({ siteId }) {
         </div>
       )}
 
-      {over && panelOpen && (
-        <aside className="result-panel">
-          <h2>{found.length === total ? '全員発見！🎉' : remaining <= 0 ? 'タイムアップ！' : '結果'}</h2>
-          {error && <div role="alert"><p className="error">{error}</p><button onClick={() => setSaveAttempt((n) => n + 1)}>もう一度保存する</button></div>}
-          <p className="result-summary">
-            {total}人中 <strong>{found.length}人</strong> 見つけました
-            {found.length === total && `（残り ${fmt(remaining)}）`}
-            {game.decoys.length > 0 && (
-              <>
-                <br />
-                デコイ {game.decoys.length} 体中 {tripped.length} 体に引っかかりました
-              </>
-            )}
-          </p>
-          <ul>
-            {game.chameleons.map((c) => (
-              <li key={c.id} className={found.includes(c.id) ? 'ok' : 'ng'}>
-                <img src={c.image} alt="" />
-                <div>
-                  <div className="result-name">{c.name}</div>
-                  <div className="result-state">{found.includes(c.id) ? '発見 ✓' : '見逃し ✗'}</div>
-                </div>
-                <button onClick={() => stageRef.current.scrollToPoint(c.x + c.w / 2, c.y + c.h / 2)}>場所を見る</button>
-              </li>
-            ))}
-          </ul>
-        </aside>
-      )}
+
     </div>
   );
 }
