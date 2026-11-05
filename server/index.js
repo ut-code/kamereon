@@ -28,6 +28,8 @@ const toChameleon = (row, { withImage = true, withDecoys = false } = {}) => ({
   createdAt: row.created_at,
 });
 
+app.use('/sites', express.static(fileURLToPath(new URL('sites', import.meta.url))));
+
 // 舞台となるページ（同一オリジンで配信して、iframe の高さを測れるようにする）
 app.get('/sites/:site', (req, res) => {
   const site = SITES[req.params.site];
