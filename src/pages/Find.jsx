@@ -78,6 +78,8 @@ const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).pad
 export default function Find({ siteId }) {
   const stageRef = useRef(null);
   const masksRef = useRef({});
+  const pointerPos = useRef({ x: -9999, y: -9999 });
+  const hideScoresRef = useRef({});
   const [stageReady, setStageReady] = useState(false);
   const [phase, setPhase] = useState('intro'); // intro | starting | playing | over | empty
   const [game, setGame] = useState(null);
@@ -117,6 +119,14 @@ export default function Find({ siteId }) {
         setPhase('empty');
         return;
       }
+      hideScoresRef.current = {};
+      g.chameleons.forEach((c) => {
+        hideScoresRef.current[c.id] = {
+          currentScore: 0,
+          wasVisible: true, // 出題された時点で画面内に存在するため true
+          isFound: false,
+        };
+      });
       // デコイは { ...位置, key, owner } に平らにしておく
       const decoys = g.chameleons.flatMap((c) =>
         (c.decoys ?? []).map((d, i) => ({ ...d, key: `${c.id}:${i}`, owner: c.name })),
@@ -154,7 +164,28 @@ export default function Find({ siteId }) {
 
   useEffect(() => {
     if (phase !== 'playing') return;
-    if (remaining <= 0 || found.length === game.chameleons.length) setPhase('over');
+
+    if (remaining <= 0 || found.length === game.chameleons.length) {
+      setPhase('over');
+
+      // 【隠れる側】最後まで見つからなかった個体に100点加点し、スコアを四捨五入して一括送信
+      const finalScores = {};
+      game.chameleons.forEach((c) => {
+        const state = hideScoresRef.current[c.id];
+        if (state) {
+          if (!state.isFound) {
+            state.currentScore += 100; // 完走ボーナス
+          }
+          finalScores[c.id] = {
+            score: Math.round(state.currentScore),
+            wasVisible: state.wasVisible,
+          };
+        }
+      });
+
+      // サーバーへ終了時一括送信
+      api.reportHideScores(game.gameId, finalScores).catch(() => {});
+    }
   }, [phase, remaining, found, game]);
 
   const onStageClick = (e) => {
@@ -165,6 +196,7 @@ export default function Find({ siteId }) {
       setNow(Date.now());
     };
     const { x, y } = stageRef.current.toStagePoint(e.clientX, e.clientY);
+    pointerPos.current = { x, y };
     const hit = game.chameleons.find(
       (c) => !found.includes(c.id) && hits(c, masksRef.current[c.id], x, y),
     );
@@ -174,11 +206,17 @@ export default function Find({ siteId }) {
     startCooldown(); // 当たり・デコイ・外れのどれでもクールタイムを発動する
     if (hit) {
       setFound((f) => [...f, hit.id]);
+      const hState = hideScoresRef.current[hit.id];
+      if (hState) {
+        hState.currentScore *= 0.5;
+        hState.isFound = true;
+      }
+      const finderScore = Math.round(100 + 20 * remaining / game.timeLimit);
+      api.reportFound(game.gameId, hit.id, finderScore).catch(() => {});
       setAnimatingFound((af) => [...af, hit.id]);
       setTimeout(() => {
         setAnimatingFound((a) => a.filter((id) => id !== hit.id));
       }, 2000);
-      api.reportFound(game.gameId, hit.id).catch(() => {});
     } else if (decoy) {
       setTripped((t) => [...t, decoy.key]);
       setDeadline((d) => d - DECOY_PENALTY_SEC * 1000);
@@ -196,6 +234,56 @@ export default function Find({ siteId }) {
   const over = phase === 'over';
   const showShadow = phase === 'playing' && aim;
   const shadowRadius = RETICLE_RADIUS_PX / zoom;
+
+  const onMouseMove = (e) => {
+    if (stageRef.current) {
+      const { x, y } = stageRef.current.toStagePoint(e.clientX, e.clientY);
+      pointerPos.current = { x, y };
+    }
+  };
+
+  useEffect(() => {
+    if (phase !== 'playing' || !game?.chameleons) return;
+
+    game.chameleons.forEach((c) => {
+      if (!hideScoresRef.current[c.id]) {
+        hideScoresRef.current[c.id] = { currentScore: 0, wasVisible: false, isFound: false };
+      }
+    });
+
+    const interval = setInterval(() => {
+      if (!stageRef.current) return;
+      const viewRect = stageRef.current.viewRect();
+
+      game.chameleons.forEach((c) => {
+        const state = hideScoresRef.current[c.id];
+        if (state.isFound) return;
+
+        const isVisible = (
+          c.x + c.w >= viewRect.left &&
+          c.x <= viewRect.right &&
+          c.y + c.h >= viewRect.top &&
+          c.y <= viewRect.bottom
+        );
+
+        if (isVisible) {
+          state.wasVisible = true;
+
+          const cx = c.x + c.w / 2;
+          const cy = c.y + c.h / 2;
+          const dist = Math.hypot(pointerPos.current.x - cx, pointerPos.current.y - cy);
+
+          const maxDist = 200;
+          const ratio = Math.max(0, Math.min(1, 1 - dist / maxDist));
+          const multiplier = 1 + 2 * ratio;
+
+          state.currentScore += 1 * multiplier;
+        }
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [phase, game]);
 
   return (
     <div className="game-page">
@@ -311,6 +399,7 @@ export default function Find({ siteId }) {
             if (e.detail > 1) e.preventDefault();
           },
           onMouseMove: (e) => {
+            onMouseMove(e);
             pointerRef.current = { x: e.clientX, y: e.clientY };
             scheduleAim();
           },

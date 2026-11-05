@@ -121,7 +121,7 @@ app.post('/api/games', (req, res) => {
 app.post('/api/games/:gameId/found', (req, res) => {
   const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
   if (!game) return res.status(404).json({ error: 'game not found' });
-  const { chameleonId } = req.body ?? {};
+  const { chameleonId, score = 0 } = req.body ?? {};
   const ids = JSON.parse(game.chameleon_ids);
   const found = JSON.parse(game.found_ids);
   if (!ids.includes(chameleonId)) return res.status(400).json({ error: 'not in this game' });
@@ -131,9 +131,52 @@ app.post('/api/games/:gameId/found', (req, res) => {
   if (found.includes(chameleonId)) return res.json({ ok: true, alreadyFound: true });
 
   found.push(chameleonId);
-  db.prepare('UPDATE games SET found_ids = ? WHERE id = ?').run(JSON.stringify(found), game.id);
+  const newScore = Math.round((game.score || 0) + score);
+  db.prepare('UPDATE games SET found_ids = ?, score = ? WHERE id = ?').run(JSON.stringify(found), newScore, game.id);
   db.prepare('UPDATE chameleons SET found = found + 1 WHERE id = ?').run(chameleonId);
   res.json({ ok: true });
+});
+
+app.post('/api/games/:gameId/finish-hide-scores', (req, res) => {
+  const { hideScores = {} } = req.body ?? {}; // { [chameleonId]: { score: 85, wasVisible: true } }
+  
+  const updateStmt = db.prepare(`
+    UPDATE chameleons 
+    SET total_hide_score = total_hide_score + ?,
+        view_count = view_count + 1 
+    WHERE id = ?
+  `);
+
+  for (const [id, data] of Object.entries(hideScores)) {
+    if (data.wasVisible) {
+      const roundedScore = Math.round(data.score ?? 0);
+      updateStmt.run(roundedScore, id);
+    }
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/rankings/finder', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT id, COALESCE(NULLIF(player_name, ''), 'ななしのハンター') AS player_name, CAST(score AS INTEGER) AS score, started_at 
+    FROM games 
+    WHERE CAST(score AS INTEGER) > 0 AND CAST(score AS INTEGER) > 0
+    ORDER BY score DESC 
+    LIMIT 10
+  `).all();
+  res.json(rows);
+});
+
+app.get('/api/rankings/hider', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT id, name, site, image, total_hide_score, view_count,
+           ROUND(total_hide_score / view_count) AS avg_score
+    FROM chameleons 
+    WHERE view_count > 2  AND (total_hide_score / view_count) > 0
+    ORDER BY avg_score DESC, view_count DESC 
+    LIMIT 10
+  `).all();
+  res.json(rows);
 });
 
 app.get('/api/stats', (_req, res) => {
