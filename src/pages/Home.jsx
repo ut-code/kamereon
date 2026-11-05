@@ -166,7 +166,7 @@ function RankingCard({ mode, entries, loading, failed, period }) {
   const [expanded, setExpanded] = useState(false);
   useEffect(() => setExpanded(false), [period]);
   const hiding = mode === 'hide';
-  const unavailable = period === 'daily' || !hiding;
+  const unavailable = period === 'daily';
   const visible = entries.slice(0, expanded ? 10 : 3);
   const compact = unavailable || failed || (!loading && visible.length === 0);
   return (
@@ -188,11 +188,11 @@ function RankingCard({ mode, entries, loading, failed, period }) {
               <span className="home-ranking-avatar" aria-hidden="true">{Array.from(entry.name || 'カ')[0]}</span>
               <div className="home-ranking-person">
                 <span className="home-ranking-name" title={entry.name}>{entry.name}</span>
-                <span className="home-ranking-detail">{hiding ? `出題${number(entry.searched)}回・発見${number(entry.found)}回` : `${number(entry.games)}回プレイ`}</span>
+                <span className="home-ranking-detail">{hiding ? `出題${number(entry.searched)}回・発見${number(entry.found)}回` : ``}</span>
               </div>
               <div className="home-ranking-score">
-                <strong>{hiding ? percent(entry.rate) : `${number(entry.found)}人`}</strong>
-                <span>{hiding ? '隠れ率' : '発見数'}</span>
+                <strong>{hiding ? `${number(entry.score)}点` : `${number(entry.found)}点`}</strong>
+                <span>{hiding ? 'スコア' : 'スコア'}</span>
               </div>
             </li>
           ))}
@@ -251,7 +251,7 @@ function Rules({ open, onClose }) {
           <li>「ここに隠れる！」で公開する</li>
         </ol>
         <p>画面に映っていて、未発見の間だけ加点します。画面外では加点しません。</p>
-        <p><strong>案1：照準あり</strong>は距離に応じて毎秒1〜3点。<strong>案2：照準なし</strong>は毎秒1点です。採用する方式は未確定です。</p>
+        <p>照準あり距離に応じて毎秒1〜3点です。</p>
         <p>見つかると、そのプレイでためた点が<strong>半分（50％減点）</strong>になり、加点が止まります。</p>
       </section>
       <section className="home-rule-group">
@@ -269,6 +269,7 @@ export default function Home({ siteId = 'utcode' }) {
   const route = useHomeRoute();
   const [period, setPeriod] = useState('all');
   const [ranking, setRanking] = useState(null);
+  const [finderRanking, setFinderRanking] = useState(null);
   const [rankingError, setRankingError] = useState(false);
   const [reload, setReload] = useState(0);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -278,14 +279,25 @@ export default function Home({ siteId = 'utcode' }) {
   useEffect(() => {
     let active = true;
     setRanking(null);
+    setFinderRanking(null);
     setRankingError(false);
-    api.listChameleons(siteId)
-      .then((data) => {
+    Promise.all([
+      api.getHiderRanking(),
+      api.getFinderRanking(),
+    ])
+      .then(([hiderData, finderData]) => {
         if (!active) return;
-        setRanking(data.filter((c) => c.searched > 0)
-          .map((c) => ({ ...c, rate: 1 - c.found / c.searched }))
-          .sort((a, b) => b.rate - a.rate || b.searched - a.searched)
-          .slice(0, 10));
+        setRanking(hiderData.map((c) => ({
+          ...c,
+          score: Math.round(c.avg_score),
+          searched: c.view_count,
+        })));
+        setFinderRanking(finderData.map((g) => ({
+          id: g.id,
+          name: g.player_name,
+          score: g.score,
+          found: g.score,
+        })));
       })
       .catch(() => { if (active) setRankingError(true); });
     return () => { active = false; };
@@ -323,11 +335,11 @@ export default function Home({ siteId = 'utcode' }) {
         </div>
         {rankingError && <div className="home-load-error" role="alert"><span>ランキングを読み込めませんでした。</span><button type="button" onClick={() => setReload((r) => r + 1)}>再読み込み</button></div>}
         <div className="home-ranking-grid" aria-busy={ranking === null && !rankingError}>
-          <RankingCard mode="find" entries={[]} period={period} loading={false} failed={false} />
+          <RankingCard mode="find" entries={finderRanking ?? []} period={period} loading={!finderRanking && !rankingError} failed={rankingError} />
           <RankingCard mode="hide" entries={ranking ?? []} period={period} loading={!ranking && !rankingError} failed={rankingError} />
         </div>
         <section className="home-score-guide" aria-labelledby="home-score-guide-title">
-          <h3 id="home-score-guide-title">スコアの計算方法（仕様案）</h3>
+          <h3 id="home-score-guide-title">スコアの計算方法</h3>
           <dl>
             <div>
               <dt>見つける：発見数＋早さのボーナス</dt>
@@ -337,7 +349,7 @@ export default function Home({ siteId = 'utcode' }) {
             <div>
               <dt>隠す：カメレオンごとの平均点</dt>
               <dd className="home-score-formula">隠れスコア ＝ 各プレイの最終得点の合計 ÷ 評価対象のプレイ回数</dd>
-              <dd>画面内の未発見時間に加点。照準あり・なしの2案を検討中です。見つかると、そのプレイでためた点が半分になります。</dd>
+              <dd>画面内の未発見時間に加点。見つかると、そのプレイでためた点が半分になります。</dd>
             </div>
           </dl>
           <details className="home-score-details">
@@ -353,8 +365,6 @@ export default function Home({ siteId = 'utcode' }) {
               <section>
                 <h4>2. 隠れる側</h4>
                 <p>画面に表示されていて、まだ発見されていない間だけ加点します。画面外にいる時間は加点しません。</p>
-                <p>加点方法は次の2案を検討中です。照準を作るかどうかを含め、採用する方式は未確定です。</p>
-                <p><strong>案1：照準との距離で加点を変える</strong></p>
                 <p>照準が近くを通っても見つからなかった場合ほど、高く評価します。</p>
                 <p className="home-score-formula">減点前の得点 ＝ 未発見で表示されていた各時間の「秒数 × 距離による倍率」の合計</p>
                 <table className="home-score-table" aria-label="表示状態と照準の距離による加点">
@@ -367,17 +377,13 @@ export default function Home({ siteId = 'utcode' }) {
                 </table>
                 <p>倍率は照準が近づくほど1倍から3倍まで滑らかに変化します。具体的な距離の基準は、案1を採用する場合に試遊で調整します。</p>
                 <p>例：未発見で30秒間表示されていた場合、減点前の得点は照準から遠ければ30点、近い状態が続けば最大90点。</p>
-                <p><strong>案2：照準を使わず、表示時間だけで加点する</strong></p>
-                <p>照準を作らず、画面に表示されていたのに見つからなかった時間を評価します。距離による倍率は使わず、毎秒1点を加えます。</p>
-                <p className="home-score-formula">減点前の得点 ＝ 未発見で画面に表示されていた秒数の合計 × 1点</p>
-                <p>例：未発見で合計30秒間表示されていた場合は30点。途中で画面外に出ていた時間は含めません。</p>
-                <p><strong>見つかった場合の減点（両案共通）</strong></p>
+                <p><strong>見つかった場合の減点</strong></p>
                 <p>発見された時点で加点を止め、そのプレイでためた点を半分（50％減点）にします。逃げ切った場合は、ためた点がそのまま最終得点になります。過去のプレイの得点は変更しません。</p>
                 <p>例：90点ためて逃げ切れば90点。90点ためた後に見つかると、90 × 0.5 ＝ 45点です。</p>
               </section>
               <section>
                 <h4>3. 隠れる側のランキング</h4>
-                <p>案1・案2のどちらでも、プレイ回数の多さだけで有利にならないよう、減点を反映した各プレイの最終得点の平均を使います。</p>
+                <p>プレイ回数の多さだけで有利にならないよう、減点を反映した各プレイの最終得点の平均を使います。</p>
                 <p>例：最終得点が毎回90点なら、5回プレイされても10回プレイされても、隠れスコアは同じ90点です。</p>
                 <p>評価対象は、そのカメレオンが一度でも画面に表示されたプレイです。一度も表示されなかった回は「未評価」とし、得点の合計にも平均の分母にも含めません。</p>
                 <p><strong>総合ランキング</strong>は全期間の平均点で比較し、通算3回以上の評価で参加します。</p>
