@@ -224,6 +224,9 @@
 .b-modal p { margin: 0; font-size: 17px; font-weight: 500; line-height: 1.7; }
 .b-modal__note { color: var(--muted); font-size: 14px !important; font-weight: 700 !important; }
 .b-modal__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 22px; padding-top: 6px; }
+/* モーダルの中のエラー。桃色の帯で知らせる */
+.b-alert,
+.b-modal .b-alert { margin: 0; padding: 8px 14px; background: var(--hide); color: var(--ink); font-size: 15px; font-weight: 800; line-height: 1.5; }
 .b-modal h3 { align-self: flex-start; margin: 4px 0 0; padding: 2px 12px 4px; background: var(--sub); font: 400 19px var(--font-display); }
 
 /* ---- 入力 ---- */
