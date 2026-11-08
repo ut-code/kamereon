@@ -84,16 +84,36 @@ const ICONS = {
       <path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z" />
     </>
   ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4-4" />
+    </>
+  ),
+  // 関節（Hide.jsx の ToolIcon と同じ形）
+  joints: (
+    <>
+      <path d="m6 6 10 5-8 8" />
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="16" cy="11" r="3" />
+      <circle cx="8" cy="19" r="3" />
+    </>
+  ),
+  check: <path d="M20 6 9 17l-5-5" />,
 };
 
-export default function Icon({ name }) {
+// size を渡すとその大きさ (px) で描く。省くと .icon の大きさ（文字の大きさに合わせる）
+export default function Icon({ name, size }) {
   return (
     <svg
       className="icon"
+      width={size}
+      height={size}
+      style={size ? { width: size, height: size } : undefined}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="2.25"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

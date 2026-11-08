@@ -1,21 +1,10 @@
 :root {
+  /* 色・文字の基本の値は tokens.css。ここには、まだ新しいデザインに移していない画面が使う色だけを残す */
   --green: #3fa34d;
   --green-dark: #2a7a36;
   --orange: #f08a24;
-  --ink: #1f2a24;
-  --muted: #6b7a70;
-  --bg: #f4f7f2;
   --panel: #ffffff;
-  --line: #dde5da;
   --danger: #d6453d;
-  font-family:
-    system-ui,
-    -apple-system,
-    "Hiragino Sans",
-    "Noto Sans JP",
-    sans-serif;
-  color: var(--ink);
-  background: var(--bg);
 }
 
 * {
@@ -24,14 +13,12 @@
 body {
   margin: 0;
 }
-a {
+/* 要素全体に効く既定の見た目。:where() で詳細度を 0 にし、部品（components/ui.css）のクラスが必ず勝つようにする */
+:where(a) {
   color: var(--green-dark);
 }
 
-button,
-.button,
-select,
-input[type="text"] {
+:where(button, .button, select, input[type="text"]) {
   font: inherit;
   font-size: 14px;
   border: 1px solid var(--line);
@@ -40,36 +27,34 @@ input[type="text"] {
   border-radius: 8px;
   padding: 6px 10px;
 }
-input[type="text"] {
+:where(input[type="text"]) {
   width: 140px;
 }
-button,
-.button {
+:where(button, .button) {
   cursor: pointer;
   text-decoration: none;
   display: inline-block;
   white-space: nowrap;
 }
-button:hover,
-.button:hover {
+:where(button:hover, .button:hover) {
   background: #eef4ec;
 }
-button:disabled {
+:where(button:disabled) {
   opacity: 0.5;
   cursor: default;
 }
-button.active {
+:where(button.active) {
   background: var(--green);
   border-color: var(--green);
   color: #fff;
 }
-.primary {
+:where(.primary) {
   background: var(--green);
   border-color: var(--green);
   color: #fff;
   font-weight: 600;
 }
-.primary:hover {
+:where(.primary:hover) {
   background: var(--green-dark);
 }
 .error {
