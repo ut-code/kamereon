@@ -1535,9 +1535,6 @@ export default function Hide({ siteId }) {
             <li><Icon name="decoy" /> デコイ（ニセモノ）を最大{MAX_DECOYS}体まで置けます。デコイをクリックした人は残り時間が減ります</li>
             <li>Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift を押しながらだと10pxずつ移動します</li>
           </ul>
-          <div className="b-modal__actions">
-            <Sticker color="hide" tilt={-2} onClick={() => setShowHelp(false)}>閉じる</Sticker>
-          </div>
         </Modal>
       )}
 
