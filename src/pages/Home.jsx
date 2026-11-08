@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import { SITES } from '../../server/sites.js';
-import { Board, FigureIcon, Ground, Sticker, Tab, tiltStyle } from '../components/ui.jsx';
+import { Board, FigureIcon, Ground, Heading, ModeTag, Sticker, Tab, tiltStyle } from '../components/ui.jsx';
 import './Home.css';
 
 const number = (value) => Number(value ?? 0).toLocaleString('ja-JP');
@@ -40,60 +40,91 @@ function useHomeRoute() {
   return route;
 }
 
-function SitePreview({ site }) {
+/**
+ * Webページの縮小表示。実物のページを iframe で開き、枠の幅に合わせて縮める
+ * iframe の高さは、縮めたときに枠の高さを埋めるだけ取る（枠の縦横比は CSS で決める）
+ */
+function SitePreview({ site, className }) {
   const frameRef = useRef(null);
-  const [scale, setScale] = useState(0.4);
+  const [view, setView] = useState({ scale: 0.2, height: 1000 });
+  const width = site.width || 1280;
   useEffect(() => {
     const el = frameRef.current;
-    const update = () => setScale(el.clientWidth / (site.width || 1280));
+    const update = () => {
+      const scale = el.clientWidth / width;
+      if (scale > 0) setView({ scale, height: Math.max(440, Math.ceil(el.clientHeight / scale)) });
+    };
     update();
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [site.width]);
-  return <div className="home-site-preview" ref={frameRef} aria-hidden="true">
+  }, [width]);
+  return <div className={`b-preview ${className ?? ''}`} ref={frameRef} aria-hidden="true">
     <iframe title={`${site.title}のプレビュー`} src={`/sites/${encodeURIComponent(site.id)}`} sandbox="" tabIndex={-1} loading="lazy"
-      width={site.width || 1280} height={440} style={{ width: site.width || 1280, height: Math.max(440, Math.ceil(180 / scale)), transform: `scale(${scale})` }} />
+      width={width} height={view.height} style={{ width, height: view.height, transform: `scale(${view.scale})` }} />
   </div>;
 }
 
+/** ホームから入る画面の上の帯。戻るボタンとモードの札。選んだページの画面では右に「ホームへ」も出す */
 function FlowHeader({ mode, backHref }) {
-  return <header className="home-flow-header">
-    <a className="button" href={backHref || '#/'}>{backHref ? '← ページ選択へ' : '← ホームへ'}</a>
-    <span className="home-flow-label" data-mode={mode}>{mode === 'hide' ? '隠す' : '見つける'}</span>
-    {backHref && <a className="home-flow-home" href="#/">ホームへ</a>}
+  return <header className="b-flowhead">
+    <div className="b-flowhead__group">
+      <Sticker as="a" href={backHref || '#/'} size="s" tilt={-2}>{backHref ? '← ページ選択へ' : '← ホームへ'}</Sticker>
+      <ModeTag mode={mode} />
+    </div>
+    {backHref && <a className="b-textlink" href="#/">ホームへ</a>}
   </header>;
+}
+
+// ページの札の傾きとテープの色。ページが増えたら同じ並びをくり返す
+const SITE_TILTS = [-1.5, 1.2, -0.8, 1.6, -1.1];
+const SITE_TAPES = ['accent', 'hide', 'find'];
+
+/** ホームから入る画面の外側。紫の地と葉っぱ */
+function FlowScreen({ children }) {
+  return <div className="b-screen"><Ground /><main className="b-flow">{children}</main></div>;
 }
 
 function HomeFlow({ route }) {
   if (route.step === 'hide-site' || route.step === 'find-site') {
-    const hiding = route.step === 'hide-site';
-    return <main className="home-screen home-flow-screen">
-      <FlowHeader mode={hiding ? 'hide' : 'find'} />
-      <div className="home-flow-heading"><h1>Webページを選択</h1></div>
-      <div className="home-site-options">
-        {AVAILABLE_SITES.map((site) => <a className="home-site-option" key={site.id}
-          href={hiding ? `#/hide?${new URLSearchParams({ site: site.id })}` : homeHref('find-ready', { site: site.id })}>
-          <SitePreview site={site} />
-          <div className="home-site-info"><h2>{site.title}</h2></div>
-          <span className="button primary">選択する →</span>
+    const mode = route.step === 'hide-site' ? 'hide' : 'find';
+    return <FlowScreen>
+      <FlowHeader mode={mode} />
+      <Heading>Webページを選ぶ</Heading>
+      <p className="b-lead">{mode === 'find' ? 'カメレオンが潜んでいるページを選んでください' : 'カメレオンを隠すページを選んでください'}</p>
+      <div className="b-sites">
+        {AVAILABLE_SITES.map((site, index) => <a className="b-site" key={site.id} style={tiltStyle(SITE_TILTS[index % SITE_TILTS.length])}
+          href={mode === 'hide' ? `#/hide?${new URLSearchParams({ site: site.id })}` : homeHref('find-ready', { site: site.id })}>
+          <span className={`b-site__tape b-tape--${SITE_TAPES[index % SITE_TAPES.length]}`} style={tiltStyle(index % 2 ? 4 : -4)} aria-hidden="true" />
+          <SitePreview site={site} className="b-site__preview" />
+          <h2>{site.title}</h2>
+          {/* 札全体がリンクなので、ボタンの見た目だけの span にする */}
+          <Sticker as="span" size="s" color={mode} tilt={index % 2 ? 2 : -2}>選択する →</Sticker>
         </a>)}
-        {Array.from({ length: Math.max(0, 4 - AVAILABLE_SITES.length) }, (_, index) => <div className="home-site-option home-site-option-empty" key={`empty-${index}`}>
-          <div className="home-site-preview home-site-preview-empty" aria-hidden="true" />
-          <div className="home-site-info"><h2>準備中</h2></div>
+        {/* ページが4つに満たないときは「準備中」で埋める */}
+        {Array.from({ length: Math.max(0, 4 - AVAILABLE_SITES.length) }, (_, index) => <div className="b-site b-site--soon" key={`empty-${index}`}>
+          <strong aria-hidden="true">？</strong>
+          <span>準備中</span>
         </div>)}
       </div>
-    </main>;
+    </FlowScreen>;
   }
 
-  return <main className="home-screen home-flow-screen">
+  return <FlowScreen>
     <FlowHeader mode="find" backHref={homeHref('find-site', { site: route.site.id })} />
-    <div className="home-flow-heading"><h1>選んだWebページ</h1></div>
-    <section className="home-find-ready" aria-live="polite">
-      <div className="home-find-site"><SitePreview site={route.site} /><h2>{route.site.title}</h2></div>
-      <div className="home-find-actions"><a className="button primary" href={`#/find?site=${encodeURIComponent(route.site.id)}`}>探しに行く →</a></div>
+    <Heading>選んだWebページ</Heading>
+    <section className="b-ready" aria-live="polite">
+      <Board as="figure" className="b-polaroid" tilt={-1.2} tapes={['accent', 'find']}>
+        <SitePreview site={route.site} className="b-polaroid__preview" />
+        <figcaption>{route.site.title}</figcaption>
+      </Board>
+      <div className="b-ready__side">
+        <Sticker as="a" href={`#/find?site=${encodeURIComponent(route.site.id)}`} size="l" color="find" tilt={-2} className="b-ready__go">
+          探しに行く →
+        </Sticker>
+      </div>
     </section>
-  </main>;
+  </FlowScreen>;
 }
 
 
@@ -285,7 +316,7 @@ export default function Home({ siteId = 'utcode' }) {
     return () => { active = false; };
   }, [siteId, reload]);
 
-  if (route.step === 'hide-body') return <main className="home-screen home-flow-screen"><p role="status">隠れる画面を開いています…</p></main>;
+  if (route.step === 'hide-body') return <FlowScreen><p className="b-lead" role="status">隠れる画面を開いています…</p></FlowScreen>;
   if (route.step) return <HomeFlow route={route} />;
 
   return (

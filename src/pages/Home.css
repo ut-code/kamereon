@@ -100,119 +100,72 @@
   .b-modal__title { font-size: 30px; }
 }
 
-/* ---- ページ選択・選んだページ（まだ新しいデザインに移していない） ---- */
+/* ---- ホームから入る画面（ページ選択・選んだページ。kamereon-design の src/screens/b-flow.css と同じ値） ---- */
 
-.home-screen {
-  --muted: #5f6f64;
-  --ink: #1f2a24;
-  --line: #dde5da;
-  max-width: 1280px;
-  min-height: 100vh;
-  margin: 0 auto;
-  padding: 32px 80px 32px;
-  background: #f4f7f2;
-  color: var(--ink);
-}
-.home-screen h1, .home-screen h2, .home-screen h3, .home-screen p { margin: 0; }
-.home-screen a, .home-screen button { -webkit-tap-highlight-color: transparent; }
-.home-screen .primary { background: var(--green-dark); border-color: var(--green-dark); }
-.home-screen .primary:hover { background: #205e2c; border-color: #205e2c; }
-.home-screen :focus-visible { outline: 3px solid var(--ink); outline-offset: 4px; }
-
-/* スタートページ内の選択画面。ゲーム画面のスタイルには影響させない。 */
-.home-flow-screen { padding: 40px; }
-.home-flow-header { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 18px; min-height: 42px; }
-.home-flow-header .button { flex: none; padding: 8px 12px; }
-.home-flow-home { display: inline-flex; align-items: center; min-height: 44px; margin-left: auto; color: var(--green-dark); font-size: 14px; text-underline-offset: 3px; }
-.home-flow-label { color: var(--green-dark); font-size: 14px; font-weight: 700; }
-.home-flow-label[data-mode='find'] { color: #9c4308; }
-.home-flow-heading { margin: 28px 0; }
-.home-flow-heading h1 { font-size: 34px; line-height: 1.45; }
-.home-site-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
-.home-site-option {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
-  min-width: 0;
-  min-height: 300px;
-  padding: 18px;
-  color: var(--ink);
-  text-decoration: none;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-}
-a.home-site-option { border-color: var(--green); }
-a.home-site-option:hover { box-shadow: inset 0 0 0 1px var(--green); }
-.home-site-option > .button { align-self: flex-end; margin-top: auto; }
-.home-site-preview { position: relative; width: 100%; height: 156px; flex: none; overflow: hidden; border-radius: 8px; background: #f8faf7; }
-.home-site-preview iframe { position: absolute; left: 0; top: 0; display: block; width: 1280px; height: 440px; border: 0; transform-origin: top left; pointer-events: none; }
-.home-site-preview-empty { background: #fafcf9; border: 1px dashed var(--line); }
-.home-site-info { min-width: 0; }
-.home-site-info h2 { font-size: 21px; line-height: 1.5; overflow-wrap: anywhere; }
-.home-site-option-empty .home-site-info h2 { font-size: 18px; font-weight: 500; color: var(--muted); }
-.home-selected-site { display: flex; align-items: center; gap: 20px; padding: 16px 20px; margin-bottom: 28px; border-radius: 14px; background: var(--panel); }
-.home-selected-site strong { min-width: 0; color: var(--green-dark); font-size: 19px; overflow-wrap: anywhere; }
-.home-body-options { position: relative; margin: 0; padding: 0; border: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-.home-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
-.home-body-option {
+.b-flow {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  min-height: 332px;
-  padding: 18px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  cursor: pointer;
+  gap: 30px;
+  box-sizing: border-box;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 30px 56px 40px;
 }
-.home-body-option:hover { border-color: var(--green); }
-.home-body-option.is-selected { border-color: var(--green); box-shadow: inset 0 0 0 2px var(--green); background: #eff8ed; }
-.home-body-option:has(input:focus-visible) { outline: 3px solid var(--green-dark); outline-offset: 4px; }
-.home-body-art { display: grid; place-items: center; width: 116px; height: 220px; flex: none; color: var(--green); }
-.home-body-art > svg { display: block; }
-.home-body-option > strong { font-size: 23px; line-height: 1.45; }
-.home-body-status { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 20px; }
-.home-body-selected { color: var(--muted); font-size: 13px; line-height: 20px; }
-.home-body-option.is-selected .home-body-selected { color: var(--green-dark); font-weight: 700; }
-.home-choice-footer { margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
-.home-choice-footer > .button { min-width: 238px; padding: 14px 24px; }
-.home-flow-screen .home-flow-note { color: var(--muted); font-size: 13px; line-height: 1.7; text-align: center; max-width: 640px; margin: 0 auto; }
-.home-find-ready { max-width: 640px; margin: 24px auto 0; text-align: center; }
-.home-random-icon { display: inline-grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: #fff1df; font-size: 44px; line-height: 1; }
-.home-find-site { display: flex; flex-direction: column; gap: 18px; margin: 20px 0; padding: 20px; background: var(--panel); border: 2px solid var(--orange); border-radius: 16px; }
-.home-find-site .home-site-preview { height: 180px; }
-.home-find-site h2 { font-size: 24px; line-height: 1.5; overflow-wrap: anywhere; }
-.home-find-actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin: 24px 0 0; }
-.home-find-actions :is(button, a) { padding: 12px 24px; }
-.home-find-actions .primary { background: #b45a0b; border-color: #b45a0b; }
-.home-find-actions .primary:hover { background: #9c4308; border-color: #9c4308; }
-.home-flow-warning { margin: 24px 0; padding: 16px 20px; color: var(--danger); background: #fbeceb; border-radius: 12px; line-height: 1.7; }
-@media (max-width: 900px) {
-  .home-flow-screen { padding: 28px 24px; }
-  .home-body-options { gap: 16px; }
-  .home-body-option { padding-inline: 12px; }
+.b-flowhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
+.b-flowhead__group { display: flex; align-items: center; gap: 22px; }
+
+/* Webページの縮小表示（iframe を枠の幅に合わせて縮める）。縦横比は使う側で決める */
+.b-preview { position: relative; overflow: hidden; background: var(--sub); }
+.b-preview iframe { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; pointer-events: none; }
+
+/* ページ選択。ページを1枚ずつテープで貼った札にする。札全体がリンク */
+.b-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 24px; align-items: start; padding-top: 22px; }
+.b-site {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 14px 22px;
+  background: var(--paper);
+  box-shadow: 0 6px 0 rgba(42, 22, 80, .4);
+  color: var(--ink);
+  text-decoration: none;
+  transform: rotate(var(--tilt, 0deg));
+  -webkit-tap-highlight-color: transparent;
 }
-@media (max-width: 600px) {
-  .home-flow-screen { padding: 24px 16px 36px; }
-  .home-flow-header { gap: 12px; }
-  .home-flow-heading { margin: 24px 0; }
-  .home-flow-heading h1 { font-size: 27px; }
-  .home-site-options { grid-template-columns: 1fr; gap: 16px; }
-  .home-selected-site { padding: 16px; gap: 12px; flex-wrap: wrap; }
-  .home-selected-site strong { font-size: 17px; }
-  .home-body-options { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-  .home-body-option { min-height: 208px; padding: 10px 6px; gap: 8px; border-radius: 12px; }
-  .home-body-art { width: min(68px, 100%); height: 130px; }
-  .home-body-art > svg { width: 100%; height: 100%; }
-  .home-body-option > strong { font-size: 18px; }
-  .home-choice-footer { margin-top: 20px; gap: 12px; }
-  .home-choice-footer > .button { min-width: 0; width: 100%; max-width: 320px; }
-  .home-find-site { padding: 16px; }
-  .home-find-site h2 { font-size: 21px; }
-  .home-find-actions { gap: 10px; }
+.b-site__tape { position: absolute; z-index: 1; top: -14px; left: 50%; width: 96px; height: 28px; margin-left: -48px; transform: rotate(var(--tilt, 0deg)); }
+.b-site__preview { width: 100%; aspect-ratio: 4 / 5; }
+.b-site h2 { min-height: 2.6em; margin: 0; font: 400 19px/1.3 var(--font-display); }
+.b-site .b-sticker { align-self: flex-end; }
+/* 札はホバーしても傾きも位置も変えない。動くのは「選択する」に乗ったときだけ（.b-sticker のホバー・押した時） */
+a.b-site:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+/* ページが4つに満たないときの空き */
+.b-site--soon { align-self: stretch; align-items: center; justify-content: center; box-sizing: border-box; min-height: 300px; border: 5px dashed var(--camo); background: none; box-shadow: none; color: var(--camo); }
+.b-site--soon strong { font: 400 72px/1 var(--font-display); }
+.b-site--soon span { font: 400 22px var(--font-display); }
+
+/* 選んだページ。写真のように貼ったページと「探しに行く」 */
+.b-ready { display: grid; grid-template-columns: minmax(0, 1fr) 380px; align-items: center; gap: 56px; padding-top: 6px; }
+.b-polaroid.b-board { gap: 0; padding: 16px 16px 18px; box-shadow: 0 7px 0 rgba(42, 22, 80, .4); }
+.b-polaroid__preview { width: 100%; aspect-ratio: 16 / 10; }
+.b-polaroid figcaption { padding-top: 14px; font: 400 28px var(--font-display); overflow-wrap: anywhere; }
+.b-ready__side { display: flex; flex-direction: column; gap: 40px; }
+.b-ready__go.b-sticker { width: 100%; font-size: 42px; }
+
+@media (max-width: 960px) {
+  .b-ready { grid-template-columns: 1fr; gap: 36px; }
+  .b-ready__side { align-items: center; }
+  .b-ready__go.b-sticker { max-width: 420px; }
+}
+@media (max-width: 760px) {
+  .b-flow { gap: 24px; padding: 20px 16px 40px; }
+  .b-flowhead__group { gap: 16px; }
+  .b-sites { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; padding-top: 18px; }
+  .b-site { gap: 10px; padding: 10px 10px 16px; }
+  .b-site h2 { font-size: 16px; }
+  .b-site .b-sticker { height: 40px; padding: 0 12px; font-size: 15px; }
+  .b-site--soon { min-height: 220px; }
+  .b-polaroid figcaption { font-size: 22px; }
+  .b-ready__go.b-sticker { height: 96px; font-size: 34px; }
 }

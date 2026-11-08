@@ -164,6 +164,10 @@
   transform: rotate(var(--tilt, 0deg));
 }
 .b-lead { margin: -8px 0 0; color: var(--paper); font-size: 18px; font-weight: 700; }
+@media (max-width: 760px) {
+  .b-heading { padding: 4px 20px 8px; font-size: 32px; }
+  .b-lead { font-size: 16px; }
+}
 
 .b-modetag {
   display: inline-block;
