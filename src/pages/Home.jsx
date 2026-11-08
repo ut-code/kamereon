@@ -239,9 +239,6 @@ function Rules({ open, onClose }) {
           </section>
         ))}
       </div>
-      <div className="b-modal__actions">
-        <Sticker color="find" tilt={-2} onClick={onClose}>わかった</Sticker>
-      </div>
     </Board>
   );
 }
