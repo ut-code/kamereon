@@ -9,6 +9,7 @@ import {
 } from "./hideJoints.js";
 import { api } from "../api.js";
 import { addMyId } from "../myChameleons.js";
+import { Check, FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from "../components/ui.jsx";
 import "./Hide.css";
 
 const TOOLS = [
@@ -34,37 +35,9 @@ const formatTime = (seconds) => {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 };
 
-function HideTimer({ remaining, timerRef }) {
-  const halfCircumference = Math.PI * 36;
-  const ratio = Math.max(0, Math.min(1, remaining / HIDE_TIME_LIMIT_SEC));
-  return (
-    <div ref={timerRef} className={`hide-timer${remaining < 30 ? " danger" : ""}`}
-      role="timer" aria-label={`隠す残り時間 ${formatTime(remaining)}`}>
-      <svg viewBox="0 0 100 55" className="gauge-svg" aria-hidden="true">
-        <path d="M 14 46 A 36 36 0 0 1 86 46" fill="none" stroke="#dde5da"
-          strokeWidth="8" strokeLinecap="round" />
-        <path d="M 14 46 A 36 36 0 0 1 86 46" fill="none" stroke="var(--green)"
-          strokeWidth="8" strokeLinecap="round" strokeDasharray={halfCircumference}
-          strokeDashoffset={halfCircumference * ratio} className="gauge-progress" />
-      </svg>
-      <span className="digital-clock">{formatTime(remaining)}</span>
-    </div>
-  );
-}
-
 const figureBounds = (f) => getFigureBounds(f.pose, f.rotation, f.joints, f.body);
 const jointLabel = (index, handle) =>
   handle === "bend" ? (index < 2 ? "ひじ" : "ひざ") : (index < 2 ? "手首" : "足首");
-
-function ToolIcon({ name }) {
-  if (name !== "joints") return <Icon name={name} />;
-  return (
-    <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="m6 6 10 5-8 8" />
-      <circle cx="6" cy="6" r="3" /><circle cx="16" cy="11" r="3" /><circle cx="8" cy="19" r="3" />
-    </svg>
-  );
-}
 
 function BodyPreview({ body }) {
   const canvasRef = useRef(null);
@@ -72,7 +45,7 @@ function BodyPreview({ body }) {
   useEffect(() => {
     const canvas = canvasRef.current;
     const painter = new JointPainter(canvas, "stand", 0, body);
-    painter.fillAll("#2a7a36");
+    painter.fillAll("#2A1650");
   }, [body]);
 
   return <canvas ref={canvasRef} className="hide-body-preview" aria-hidden="true" />;
@@ -162,13 +135,10 @@ function InlineColorPicker({ color, onChange, children }) {
     <section className="hide-color-picker" aria-label="色を選ぶ">
       <div className="hide-color-picker-header">
         <h3>色を選ぶ</h3>
-        <div className="hide-color-actions">{children}</div>
-      </div>
-      <div className="hide-color-mode-switch" role="group" aria-label="色の選び方">
-        <button type="button" aria-pressed={mode === "free"}
-          onClick={() => setMode("free")}>自由に選ぶ</button>
-        <button type="button" aria-pressed={mode === "palette"}
-          onClick={() => setMode("palette")}>パレットから選ぶ</button>
+        <div className="hide-color-mode-switch" role="group" aria-label="色の選び方">
+          <Tab pressed={mode === "free"} color="accent" onClick={() => setMode("free")}>自由に選ぶ</Tab>
+          <Tab pressed={mode === "palette"} color="accent" onClick={() => setMode("palette")}>パレットから選ぶ</Tab>
+        </div>
       </div>
       <div className="hide-color-mode-panels">
       <div className={`hide-color-picker-body hide-color-mode-panel${mode === "free" ? "" : " is-inactive"}`}
@@ -210,6 +180,7 @@ function InlineColorPicker({ color, onChange, children }) {
             <span>色コード</span>
             <input
               type="text"
+              className="b-input"
               aria-label="色コード"
               value={hexDraft}
               maxLength={7}
@@ -256,6 +227,7 @@ function InlineColorPicker({ color, onChange, children }) {
         </div>
       </div>
       </div>
+      <div className="hide-color-actions">{children}</div>
     </section>
   );
 }
@@ -1152,129 +1124,104 @@ export default function Hide({ siteId }) {
   };
 
   return (
-    <div className="game-page">
-      <header className="toolbar">
-        {/* ホーム・モード名（1行目）とツール（2行目） */}
-        <div className="toolbar-start">
-          <div className="tool-row">
-            <a href="#/" className="toolbar-home">
-              🦎 ホーム
-            </a>
-            <span className="toolbar-title">隠れるモード</span>
+    <div className="b-game">
+      {/* 上の段：ホーム・モード名・遊び方・残り時間と、元に戻す・名前・保存／下の段：道具・体型と、枠の表示・デコイ */}
+      <header className="b-tools">
+        <div className="b-tools__row">
+          <div className="b-tools__group">
+            <Tab as="a" href="#/" tilt={-2}>← ホーム</Tab>
+            <span className="b-hud__mode">隠す</span>
             <button
-              className="help-button"
+              type="button"
+              className="b-help"
+              style={tiltStyle(4)}
               onClick={() => setShowHelp(true)}
               title="隠れるモードの説明"
               aria-label="隠れるモードの説明"
             >
               ?
             </button>
-            <HideTimer remaining={remaining} timerRef={timerRef} />
+            <Timer ref={timerRef} variant="hide" time={formatTime(remaining)}
+              ratio={remaining / HIDE_TIME_LIMIT_SEC} danger={remaining < 30}
+              label={`隠す残り時間 ${formatTime(remaining)}`} />
           </div>
-          <div className="tool-group">
-            {TOOLS.map((t) => (
-              <button
-                key={t.key}
-                className={tool === t.key ? "active" : ""}
-                disabled={editingLocked || (t.key !== "move" && !active)}
-                onClick={() => selectTool(t.key)}
-              >
-                <ToolIcon name={t.key} /> {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="hide-body-picker palette" role="group" aria-label="体型">
-          <span className="hide-body-label">体型</span>
-          <div className="hide-body-choices">
-            {Object.entries(BODY_TYPES).map(([key, body]) => (
-              <button
-                key={key}
-                type="button"
-                className="hide-body-choice"
-                aria-pressed={(active?.body ?? "standard") === key}
-                disabled={!active || editingLocked}
-                onClick={() => changeBody(key)}
-              >
-                <BodyPreview body={key} />
-                <span>{body.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 表示設定・デコイ */}
-        <div className="figure-options palette hide-figure-options">
-          <div className="tool-group">
-            <label className="check-field">
-              <input
-                type="checkbox"
-                checked={outline}
-                onChange={(e) => setOutline(e.target.checked)}
-              />
-              枠を表示
-            </label>
-          </div>
-          <button className="decoy-add"
-            disabled={editingLocked || !figs.length || decoyCount >= MAX_DECOYS}
-            onClick={addDecoy} title="見つける人をだますニセモノを置く">
-            <Icon name="decoy" /> デコイを追加 ({decoyCount}/{MAX_DECOYS})
-          </button>
-          {active?.decoy && (
-            <button className="decoy-remove" disabled={editingLocked} onClick={removeDecoy}>
-              <Icon name="trash" /> デコイを削除
-            </button>
-          )}
-        </div>
-
-        {/* 元に戻す・やり直す（1行目）と名前・保存（2行目） */}
-        <div className="toolbar-end">
-          <div className="tool-group">
-            <button
-              disabled={editingLocked}
-              onClick={() => editPaint("undo")}
-              title="元に戻す (Ctrl+Z)"
-              aria-label="元に戻す"
-            >
+          <div className="b-tools__group">
+            <Tab className="b-tab--icon" disabled={editingLocked} onClick={() => editPaint("undo")}
+              title="元に戻す (Ctrl+Z)" aria-label="元に戻す">
               <Icon name="undo" />
-            </button>
-            <button
-              disabled={editingLocked}
-              onClick={() => editPaint("redo")}
-              title="やり直す (Ctrl+Shift+Z)"
-              aria-label="やり直す"
-            >
+            </Tab>
+            <Tab className="b-tab--icon" disabled={editingLocked} onClick={() => editPaint("redo")}
+              title="やり直す (Ctrl+Shift+Z)" aria-label="やり直す">
               <Icon name="redo" />
-            </button>
-          </div>
-          <div className="tool-group">
+            </Tab>
+            <span className="b-tools__sep" aria-hidden="true" />
             <input
               type="text"
+              className="b-input"
+              aria-label="カメレオンの名前"
               placeholder="カメレオンの名前"
               maxLength={20}
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
-            <button
-              className="primary"
-              disabled={!figs.length || saving || Boolean(savedId)}
-              onClick={save}
-            >
+            <Sticker size="s" color="hide" tilt={-2} disabled={!figs.length || saving || Boolean(savedId)} onClick={save}>
               {saving ? "保存中…" : "ここに隠れる！"}
-            </button>
+            </Sticker>
+          </div>
+        </div>
+
+        <div className="b-tools__row">
+          <div className="b-tools__group">
+            {TOOLS.map((t) => (
+              <Tab
+                key={t.key}
+                pressed={tool === t.key}
+                color="hide"
+                disabled={editingLocked || (t.key !== "move" && !active)}
+                onClick={() => selectTool(t.key)}
+              >
+                <Icon name={t.key} /> {t.label}
+              </Tab>
+            ))}
+            <span className="b-tools__sep" aria-hidden="true" />
+            <div className="b-bodypick" role="group" aria-label="体型">
+              <span>体型</span>
+              {Object.entries(BODY_TYPES).map(([key, body]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="b-bodypick__choice"
+                  aria-pressed={(active?.body ?? "standard") === key}
+                  disabled={!active || editingLocked}
+                  onClick={() => changeBody(key)}
+                >
+                  <BodyPreview body={key} />
+                  <span>{body.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="b-tools__group">
+            <Check checked={outline} onChange={(e) => setOutline(e.target.checked)}>枠を表示</Check>
+            <span className="b-tools__sep" aria-hidden="true" />
+            <Tab disabled={editingLocked || !figs.length || decoyCount >= MAX_DECOYS}
+              onClick={addDecoy} title="見つける人をだますニセモノを置く">
+              <Icon name="decoy" /> デコイを追加 ({decoyCount}/{MAX_DECOYS})
+            </Tab>
+            {active?.decoy && (
+              <Tab disabled={editingLocked} onClick={removeDecoy}>
+                <Icon name="trash" /> デコイを削除
+              </Tab>
+            )}
           </div>
         </div>
       </header>
-      <div className="toolbar-hint">
-        {active && (
-          <strong className="editing-label">
-            {timeUp ? "編集終了" : `${figLabel(active, figs)}を編集中`}
-          </strong>
-        )}
-        位置: {active ? `(${active.x}, ${active.y})` : "-"}
-        {decoyCount > 0 && "　/　デコイをクリックした人は残り時間が減ります"}
-        {error && <span className="error">　{error}</span>}
+      {/* 帯の下の1行。編集中の人型と位置。デコイを置いたら注意を添える */}
+      <div className="b-hint">
+        {active && <strong>{timeUp ? "編集終了" : `${figLabel(active, figs)}を編集中`}</strong>}
+        <span>位置: {active ? `(${active.x}, ${active.y})` : "-"}</span>
+        {decoyCount > 0 && <span>／　デコイをクリックした人は残り時間が減ります</span>}
+        {error && <span className="b-hint__error" role="alert">{error}</span>}
       </div>
 
       <SiteStage
@@ -1360,6 +1307,8 @@ export default function Hide({ siteId }) {
             if (e.target === e.currentTarget) closePaint();
           }}
         >
+          <span className="b-tape b-tape--left b-tape--hide" aria-hidden="true" />
+          <span className="b-tape b-tape--right b-tape--accent" aria-hidden="true" />
           <div className="hide-paint-panel">
             <header className="hide-paint-header"
               title="上部をドラッグして画面を移動"
@@ -1373,77 +1322,51 @@ export default function Hide({ siteId }) {
 
             <div className="hide-paint-controls">
               <div className="hide-paint-row">
-                <div className="tool-group">
+                <div className="hide-paint-group">
                   {TOOLS.filter((t) => t.key !== "move").map((t) => (
-                    <button
+                    <Tab
                       key={t.key}
-                      className={tool === t.key ? "active" : ""}
-                      aria-pressed={tool === t.key}
+                      pressed={tool === t.key}
+                      color="hide"
                       onClick={() => { if (!canEdit()) return; onPointerUp(); setSplashes([]); setTool(t.key); }}
                     >
-                      <ToolIcon name={t.key} /> {t.label}
-                    </button>
+                      <Icon name={t.key} /> {t.label}
+                    </Tab>
                   ))}
                 </div>
-                <div className="tool-group">
-                  <button
-                    onClick={() => editPaint("undo")}
-                    aria-label="元に戻す"
-                    title="元に戻す (Ctrl+Z)"
-                  >
+                <div className="hide-paint-group">
+                  <Tab className="b-tab--icon" onClick={() => editPaint("undo")} aria-label="元に戻す" title="元に戻す (Ctrl+Z)">
                     <Icon name="undo" />
-                  </button>
-                  <button
-                    onClick={() => editPaint("redo")}
-                    aria-label="やり直す"
-                    title="やり直す (Ctrl+Shift+Z)"
-                  >
+                  </Tab>
+                  <Tab className="b-tab--icon" onClick={() => editPaint("redo")} aria-label="やり直す" title="やり直す (Ctrl+Shift+Z)">
                     <Icon name="redo" />
-                  </button>
-                  <button className="hide-paint-close" onClick={closePaint} aria-label="編集を閉じる">×</button>
+                  </Tab>
+                  <Tab className="b-tab--icon hide-paint-close" tilt={3} onClick={closePaint} aria-label="編集を閉じる">×</Tab>
                 </div>
               </div>
               <div className="hide-mode-stack">
                 <div className={`hide-paint-row${editingJoints ? "" : " is-inactive"}`}
                   aria-hidden={!editingJoints}>
-                  <div className="tool-group" role="group" aria-label="全体の角度">
-                    <span>全体の角度</span>
-                    <button
-                      onClick={() => rotate(-ROTATE_STEP)}
-                      title={`左に${ROTATE_STEP}度回す`}
-                      aria-label="左に回す"
-                    >
+                  <div className="hide-paint-group" role="group" aria-label="全体の角度">
+                    <span className="hide-paint-label">全体の角度</span>
+                    <Tab className="b-tab--icon" onClick={() => rotate(-ROTATE_STEP)} title={`左に${ROTATE_STEP}度回す`} aria-label="左に回す">
                       <Icon name="rotateLeft" />
-                    </button>
-                    <button
-                      className="rotation-value"
-                      onClick={() => changeRotation(0)}
-                      title="クリックでまっすぐに戻す"
-                      aria-label={`角度 ${active.rotation}度。まっすぐに戻す`}
-                    >
+                    </Tab>
+                    <Tab className="rotation-value" onClick={() => changeRotation(0)} title="クリックでまっすぐに戻す"
+                      aria-label={`角度 ${active.rotation}度。まっすぐに戻す`}>
                       {active.rotation}°
-                    </button>
-                    <button
-                      onClick={() => rotate(ROTATE_STEP)}
-                      title={`右に${ROTATE_STEP}度回す`}
-                      aria-label="右に回す"
-                    >
+                    </Tab>
+                    <Tab className="b-tab--icon" onClick={() => rotate(ROTATE_STEP)} title={`右に${ROTATE_STEP}度回す`} aria-label="右に回す">
                       <Icon name="rotateRight" />
-                    </button>
+                    </Tab>
                   </div>
                 </div>
-                <label className={`size-field hide-paint-size${editingJoints ? " is-inactive" : ""}`}
+                <label className={`hide-paint-size${editingJoints ? " is-inactive" : ""}`}
                   aria-hidden={editingJoints}>
-                  太さ
-                  <input
-                    type="range"
-                    min="0.2"
-                    max="12"
-                    step="0.2"
-                    value={size}
-                    onChange={(e) => setSize(Number(e.target.value))}
-                  />
-                  <span>{size}</span>
+                  <span className="hide-paint-label">太さ</span>
+                  <Range color="hide" min={0.2} max={12} step={0.2} value={size}
+                    onChange={(e) => setSize(Number(e.target.value))} />
+                  <span className="hide-paint-size-value">{size}</span>
                 </label>
               </div>
             </div>
@@ -1553,24 +1476,22 @@ export default function Hide({ siteId }) {
                 aria-hidden={tool !== "pen"}>
                 <InlineColorPicker color={color} onChange={(value) => { if (canEdit()) setColor(value); }}>
                   {hasEyeDropper && (
-                    <button onClick={pickColor} title="配置場所の背景から色を拾う">
+                    <Tab onClick={pickColor} title="配置場所の背景から色を拾う">
                       <Icon name="eyedropper" /> スポイト
-                    </button>
+                    </Tab>
                   )}
-                  <button onClick={() => editPaint("fillAll", color)} title="全体を今の色で1回塗る">
+                  <Tab onClick={() => editPaint("fillAll", color)} title="全体を今の色で1回塗る">
                     <Icon name="fill" /> 全体塗り
-                  </button>
-                  <button onClick={resetColor} title="塗った色をすべて消して白に戻す">
+                  </Tab>
+                  <Tab onClick={resetColor} title="塗った色をすべて消して白に戻す">
                     色をリセット
-                  </button>
+                  </Tab>
                 </InlineColorPicker>
               </div>
               <div className={`hide-joint-help${editingJoints ? "" : " is-inactive"}`}
                 aria-hidden={!editingJoints}>
-                <p>ひじ・ひざで向きを、手首・足首で曲がり具合を調整できます。緑の点をドラッグするか、選んだ関節を矢印キーで動かしてください。</p>
-                <button onClick={resetPoseAndRotation}>
-                  ポーズ・角度をリセット
-                </button>
+                <p>ひじ・ひざで向きを、手首・足首で曲がり具合を調整できます。黄緑の点をドラッグするか、選んだ関節を矢印キーで動かしてください。</p>
+                <Tab onClick={resetPoseAndRotation}>ポーズ・角度をリセット</Tab>
               </div>
               <p className={`hide-eraser-help${tool === "eraser" ? "" : " is-inactive"}`}
                 aria-hidden={tool !== "eraser"}>
@@ -1578,112 +1499,87 @@ export default function Hide({ siteId }) {
               </p>
             </div>
             <footer className="hide-paint-footer">
-              <button className="primary" onClick={closePaint}>
-                完了
-              </button>
+              <Sticker size="s" color="hide" tilt={-2} onClick={closePaint}>完了</Sticker>
             </footer>
           </div>
         </dialog>
       )}
 
       {showHelp && (
-        <div className="modal-backdrop" onClick={() => setShowHelp(false)}>
-          <div
-            className="modal help-modal"
-            role="dialog"
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>隠れるモードの遊び方</h2>
-            <p>
-              人型のカメレオンをページのどこかに置き、背景になじむように色を塗って隠しましょう。
-              「ここに隠れる！」を押すと保存され、見つけるモードで他の人に探してもらえます。
-            </p>
-            <p>隠す制限時間は5分です。時間が来ると編集が終了し、その時点の状態で保存できます。</p>
-            <h3>ツール</h3>
-            <dl>
-              {TOOLS.map((t) => (
-                <div key={t.key}>
-                  <dt>
-                    <ToolIcon name={t.key} /> {t.label}
-                  </dt>
-                  <dd>{t.hint}</dd>
-                </div>
-              ))}
-            </dl>
-            <h3>その他</h3>
-            <ul>
-              <li>「体型」で細め・標準・太めを切り替えられます。塗りと関節のポーズは引き継がれます。</li>
-              <li>
-                「ポーズ・角度」の画面で、
-                <Icon name="rotateLeft" /> <Icon name="rotateRight" />
-                を押すと全体の角度を15度ずつ調整できます。角度の数字を押すとまっすぐに戻ります。
-              </li>
-              <li>
-                <Icon name="decoy" /> デコイ（ニセモノ）を最大{MAX_DECOYS}
-                体まで置けます。デコイをクリックした人は残り時間が減ります。
-              </li>
-              <li>
-                Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift
-                を押しながらだと10pxずつ移動します。
-              </li>
-            </ul>
-            <div className="modal-actions">
-              <button className="primary" onClick={() => setShowHelp(false)}>
-                閉じる
-              </button>
-            </div>
+        <Modal tapes={["hide", "accent"]} className="hide-help" aria-labelledby="hide-help-title" onBackdropClick={() => setShowHelp(false)}>
+          <div className="b-modal__head">
+            <h2 id="hide-help-title" className="b-modal__title">隠れるモードの遊び方</h2>
+            <Tab tilt={3} aria-label="閉じる" onClick={() => setShowHelp(false)}>×</Tab>
           </div>
-        </div>
+          <p>
+            人型のカメレオンをページのどこかに置き、背景になじむように色を塗って隠しましょう。
+            「ここに隠れる！」を押すと保存され、見つけるモードで他の人に探してもらえます。
+          </p>
+          <p>隠す制限時間は5分です。時間が来ると編集が終了し、その時点の状態で保存できます。</p>
+          <h3>ツール</h3>
+          <dl className="hide-help-tools">
+            {TOOLS.map((t, index) => (
+              <div key={t.key}>
+                <dt><span className="b-tab b-fill--sub" style={tiltStyle(index % 2 ? 1.5 : -1.5)}><Icon name={t.key} /> {t.label}</span></dt>
+                <dd>{t.hint}</dd>
+              </div>
+            ))}
+          </dl>
+          <h3>その他</h3>
+          <ul className="hide-help-list">
+            <li>「体型」で細め・標準・太めを切り替えられます。塗りと関節のポーズは引き継がれます</li>
+            <li>
+              「ポーズ・角度」の画面で、<Icon name="rotateLeft" /> <Icon name="rotateRight" /> を押すと全体の角度を
+              {ROTATE_STEP}度ずつ調整できます。角度の数字を押すとまっすぐに戻ります
+            </li>
+            <li><Icon name="decoy" /> デコイ（ニセモノ）を最大{MAX_DECOYS}体まで置けます。デコイをクリックした人は残り時間が減ります</li>
+            <li>Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift を押しながらだと10pxずつ移動します</li>
+          </ul>
+          <div className="b-modal__actions">
+            <Sticker color="hide" tilt={-2} onClick={() => setShowHelp(false)}>閉じる</Sticker>
+          </div>
+        </Modal>
       )}
 
       {timeUp && !savedId && (
-        <div className="modal-backdrop">
-          <div className="modal hide-timeup" role="dialog" aria-modal="true" aria-labelledby="hide-timeup-title">
-            <h2 id="hide-timeup-title">タイムアップ！</h2>
-            <p>5分が経過したので、編集を終了しました。<br />今の色・ポーズ・場所で隠せます。</p>
-            <input type="text" aria-label="カメレオンの名前" placeholder="カメレオンの名前"
-              maxLength={20} value={name} onChange={(e) => setName(e.target.value)} disabled={saving} autoFocus />
-            {error && <p className="error" role="alert">{error}</p>}
-            <div className="modal-actions">
-              <button className="primary" onClick={save} disabled={saving}>
-                {saving ? "保存中…" : "この状態で隠す"}
-              </button>
-              <a className="button" href={`#/hide?site=${siteId}&t=${Date.now()}`}>もう一度</a>
-              <a className="button" href="#/">ホームへ</a>
-            </div>
+        <Modal tapes={["hide", null]} className="hide-timeup" aria-labelledby="hide-timeup-title">
+          <h2 id="hide-timeup-title" className="b-modal__title">タイムアップ！</h2>
+          <p>5分が経過したので、編集を終了しました。<br />今の色・ポーズ・場所で隠せます。</p>
+          <input type="text" className="b-input hide-timeup-name" aria-label="カメレオンの名前" placeholder="カメレオンの名前"
+            maxLength={20} value={name} onChange={(e) => setName(e.target.value)} disabled={saving} autoFocus />
+          {error && <p className="b-alert" role="alert">{error}</p>}
+          <div className="b-modal__actions">
+            <Sticker as="a" href="#/" tilt={2}>ホームへ</Sticker>
+            <Sticker as="a" href={`#/hide?site=${siteId}&t=${Date.now()}`} tilt={-1.5}>もう一度</Sticker>
+            <Sticker color="hide" tilt={-2} onClick={save} disabled={saving}>
+              {saving ? "保存中…" : "この状態で隠す"}
+            </Sticker>
           </div>
-        </div>
+        </Modal>
       )}
 
       {savedId && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h2>隠れました！🦎</h2>
-            <p>
-              「{name.trim() || "ななしのカメレオン"}」がページに潜みました。
-              {decoyCount > 0 && (
-                <>
-                  <br />
-                  デコイ {decoyCount} 体も配置しました。
-                </>
-              )}
-              <br />
-              何人に探され、何人に見つかったかはホームで確認できます。
-            </p>
-            <div className="modal-actions">
-              <a className="button primary" href="#/">
-                ホームへ
-              </a>
-              <a
-                className="button"
-                href={`#/hide?site=${siteId}&t=${Date.now()}`}
-              >
-                もう一人隠す
-              </a>
-            </div>
+        <Modal tapes={["hide", "find"]} aria-labelledby="hide-saved-title">
+          <div className="hide-saved-head">
+            <span style={tiltStyle(-6)}><FigureIcon className="hide-saved-figure" width={34} height={64} /></span>
+            <h2 id="hide-saved-title" className="b-modal__title">隠れました！</h2>
           </div>
-        </div>
+          <p>
+            「{name.trim() || "ななしのカメレオン"}」がページに潜みました。
+            {decoyCount > 0 && (
+              <>
+                <br />
+                デコイ {decoyCount} 体も配置しました。
+              </>
+            )}
+            <br />
+            何人に探され、何人に見つかったかはホームで確認できます。
+          </p>
+          <div className="b-modal__actions">
+            <Sticker as="a" href={`#/hide?site=${siteId}&t=${Date.now()}`} tilt={2}>もう一人隠す</Sticker>
+            <Sticker as="a" href="#/" color="hide" tilt={-2}>ホームへ</Sticker>
+          </div>
+        </Modal>
       )}
     </div>
   );

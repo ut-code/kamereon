@@ -3,18 +3,6 @@
  * 舞台（SiteStage）の座標を使うので、舞台とその親は傾けない。傾けるのは帯の中の札とボタンだけ
  */
 
-.b-game {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--ink);
-  font-family: var(--font-body);
-}
-
 /* ---- 上の帯。左：ホーム・モード名・倍率／真ん中：残り時間か結果／右：残りの数とボタン ---- */
 
 .b-hud {
@@ -36,7 +24,6 @@
 .b-hud__center { display: flex; grid-area: center; justify-content: center; }
 .b-hud__group--end { grid-area: end; justify-content: flex-end; }
 .b-hud .b-tab { height: 42px; padding: 0 14px; font-size: 16px; }
-.b-hud__mode { font: 400 22px var(--font-display); white-space: nowrap; }
 .b-hud__zoom { display: flex; align-items: center; gap: 10px; padding-left: 8px; color: var(--muted); font-size: 14px; font-weight: 800; white-space: nowrap; }
 .b-hud__zoom-value { min-width: 4.5ch; font-variant-numeric: tabular-nums; }
 .b-hud__error { padding: 4px 10px; background: var(--hide); font-size: 14px; font-weight: 800; }

@@ -1,7 +1,7 @@
 /*
  * 共通部品の見た目（ui.jsx）。値は kamereon-design の src/screens/b.css・b-flow.css と同じ
  * 傾きは --tilt で受け取る。ホバーはまっすぐにして浮かせ、押した時は傾いたまま沈める
- * クラスは b- で始め、まだ移していない画面の CSS（.modal、.toolbar など）とぶつからないようにする
+ * クラスは b- で始める（画面ごとの CSS のクラスと名前がぶつからないようにする）
  */
 
 /* ---- 色 ---- */
@@ -35,6 +35,22 @@
 }
 .b-ground__light { fill: var(--leaf-light); }
 .b-ground__dark { fill: var(--leaf-dark); }
+
+/* ゲームの画面（見つける・隠す）の外側。上に帯、残りを舞台にする */
+.b-game {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+/* 帯のモード名（見つける・隠す） */
+.b-hud__mode { font: 400 22px var(--font-display); white-space: nowrap; }
 
 /* ---- ステッカーのボタン ---- */
 
