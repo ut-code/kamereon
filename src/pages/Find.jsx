@@ -9,9 +9,9 @@ const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
 const DECOY_PENALTY_SEC = 10; // デコイをクリックしたときに減る時間
 const CLICK_COOLDOWN_MS = 5000; // フィールドをクリックしたあとのクールタイム
 const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。styles.css の .stage-overlay.seeking のカーソルと合わせる
-const SHADOW_MIN_OFFSET = 4; // 影のずれの最小値 (ページpx)
-const SHADOW_MAX_EXTRA = 10; // 光源から離れるほど増える影のずれの上限 (ページpx)
-const SHADOW_DIST_RATIO = 0.15; // 光源からの距離に対する影のずれの割合
+const SHADOW_MIN_OFFSET = 6; // 影のずれの最小値 (ページpx)
+const SHADOW_MAX_EXTRA = 12; // 光源から離れるほど増える影のずれの上限 (ページpx)
+const SHADOW_DIST_RATIO = 0.2; // 光源からの距離に対する影のずれの割合
 
 // 画像の不透明ピクセルをクリックしたかどうかを判定するためのマスクを作る
 async function loadAlphaMask(src) {
@@ -54,10 +54,10 @@ function FlashlightShadow({ obj, aim, radius }) {
   const dist = Math.hypot(vx, vy);
   const [ux, uy] = dist > 0 ? [vx / dist, vy / dist] : [Math.SQRT1_2, Math.SQRT1_2];
   const len = SHADOW_MIN_OFFSET + Math.min(dist * SHADOW_DIST_RATIO, SHADOW_MAX_EXTRA);
-  const dx = ux * len;
-  const dy = uy * len;
-  const whitedx = dx * 1.5;
-  const whitedy = dy * 1.5;
+  const dx = ux * len * 1.2;
+  const dy = uy * len * 1.2;
+  const whitedx = dx * 1.4;
+  const whitedy = dy * 1.4;
 
   return (
     <>
@@ -71,6 +71,7 @@ function FlashlightShadow({ obj, aim, radius }) {
         top: dy,
         // clip-path は影要素自身の座標系なので、照準の中心を影要素基準に直す
         clipPath: `circle(${radius}px at ${aim.x - obj.x - dx}px ${aim.y - obj.y - dy}px)`,
+        opacity: 0.3,
       }}
     />
     <img
@@ -83,7 +84,7 @@ function FlashlightShadow({ obj, aim, radius }) {
         top: whitedy,
         // clip-path は影要素自身の座標系なので、照準の中心を影要素基準に直す
         clipPath: `circle(${radius}px at ${aim.x - obj.x - whitedx}px ${aim.y - obj.y - whitedy}px)`,
-        filter: 'brightness(0) invert(1) drop-shadow(0px 0px 4px rgba(255, 255, 255, 0.8)) brightness(2) opacity(0.9)'
+        filter: 'brightness(0) invert(1) drop-shadow(0px 0px 4px rgba(255, 255, 255, 1))'
       }}
     />
     </>
