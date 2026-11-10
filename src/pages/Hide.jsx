@@ -327,6 +327,315 @@ export default function Hide({ siteId }) {
         })}
       </SiteStage>
 
+      {showPaint && active && (
+        <dialog
+          ref={paintDialogRef}
+          className="hide-paint-modal"
+          aria-label={`${figLabel(active, figs)}の色塗り・ポーズ調整`}
+          onCancel={(e) => {
+            e.preventDefault();
+            closePaint();
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closePaint();
+          }}
+        >
+          <div className="hide-paint-panel">
+            <header className="hide-paint-header"
+              title="上部をドラッグして画面を移動"
+              onPointerDown={onPaintDialogDown}
+              onPointerMove={onPaintDialogMove}
+              onPointerUp={endPaintDialogDrag}
+              onPointerCancel={endPaintDialogDrag}
+              onLostPointerCapture={endPaintDialogDrag}>
+              <span className="hide-paint-grip" aria-hidden="true" />
+            </header>
+
+            <div className="hide-paint-controls">
+              <div className="hide-paint-row">
+                <div className="tool-group">
+                  {TOOLS.filter((t) => t.key !== "move").map((t) => (
+                    <button
+                      key={t.key}
+                      className={tool === t.key ? "active" : ""}
+                      aria-pressed={tool === t.key}
+                      onClick={() => { if (!canEdit()) return; onPointerUp(); setSplashes([]); setTool(t.key); }}
+                    >
+                      <ToolIcon name={t.key} /> {t.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="tool-group">
+                  <button
+                    onClick={() => editPaint("undo")}
+                    aria-label="元に戻す"
+                    title="元に戻す (Ctrl+Z)"
+                  >
+                    <Icon name="undo" />
+                  </button>
+                  <button
+                    onClick={() => editPaint("redo")}
+                    aria-label="やり直す"
+                    title="やり直す (Ctrl+Shift+Z)"
+                  >
+                    <Icon name="redo" />
+                  </button>
+                  <button className="hide-paint-close" onClick={closePaint} aria-label="編集を閉じる">×</button>
+                </div>
+              </div>
+              <div className="hide-mode-stack">
+                <div className={`hide-paint-row${editingJoints ? "" : " is-inactive"}`}
+                  aria-hidden={!editingJoints}>
+                  <div className="tool-group" role="group" aria-label="全体の角度">
+                    <span>全体の角度</span>
+                    <button
+                      onClick={() => rotate(-ROTATE_STEP)}
+                      title={`左に${ROTATE_STEP}度回す`}
+                      aria-label="左に回す"
+                    >
+                      <Icon name="rotateLeft" />
+                    </button>
+                    <button
+                      className="rotation-value"
+                      onClick={() => changeRotation(0)}
+                      title="クリックでまっすぐに戻す"
+                      aria-label={`角度 ${active.rotation}度。まっすぐに戻す`}
+                    >
+                      {active.rotation}°
+                    </button>
+                    <button
+                      onClick={() => rotate(ROTATE_STEP)}
+                      title={`右に${ROTATE_STEP}度回す`}
+                      aria-label="右に回す"
+                    >
+                      <Icon name="rotateRight" />
+                    </button>
+                  </div>
+                </div>
+                <label className={`size-field hide-paint-size${editingJoints ? " is-inactive" : ""}`}
+                  aria-hidden={editingJoints}>
+                  太さ
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="12"
+                    step="0.2"
+                    value={size}
+                    onChange={(e) => setSize(Number(e.target.value))}
+                  />
+                  <span>{size}</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="hide-paint-surface" ref={paintSurfaceRef}>
+              <iframe
+                ref={paintBackgroundRef}
+                className="hide-paint-background"
+                title="配置場所の背景"
+                src={`/sites/${siteId}`}
+                sandbox="allow-scripts allow-same-origin"
+                width={stageRef.current.size.width}
+                height={stageRef.current.size.height}
+                tabIndex={-1}
+                aria-hidden="true"
+                onLoad={() => setPaintBackgroundReady(true)}
+              />
+              {!paintBackgroundReady && (
+                <div className="hide-paint-background-loading" role="status">
+                  背景を読み込み中…
+                </div>
+              )}
+              <div
+                ref={jointEditorRef}
+                className={`hide-paint-figure${editingJoints ? " is-joint-editing" : ""}`}
+              >
+                <div className="hide-paint-artwork" style={{
+                  left: `${(paintSize.x / JOINT_VIEW_SIZE + 0.5) * 100}%`,
+                  top: `${(paintSize.y / JOINT_VIEW_SIZE + 0.5) * 100}%`,
+                  width: `${paintSize.w / JOINT_VIEW_SIZE * 100}%`,
+                  height: `${paintSize.h / JOINT_VIEW_SIZE * 100}%`,
+                }}>
+                  <canvas
+                    ref={paintCanvasRef}
+                    className="hide-paint-canvas"
+                    aria-label={`カメレオンの${editingJoints ? "ポーズ" : "色塗り"}キャンバス`}
+                    tabIndex={editingJoints ? -1 : 0}
+                    onPointerDown={onPointerDown(active)}
+                    onPointerMove={onPointerMove(active)}
+                    onPointerUp={onPointerUp}
+                    onPointerCancel={onPointerUp}
+                    onLostPointerCapture={onPointerUp}
+                  />
+                  {splashes.map((splash) => (
+                    <svg
+                      key={splash.id}
+                      className="hide-paint-splash"
+                      viewBox="0 0 100 100"
+                      aria-hidden="true"
+                      style={{ left: `${splash.x}%`, top: `${splash.y}%`,
+                        width: `${splash.size}%`, color: splash.color,
+                        "--splash-angle": `${splash.id * 137.5 % 360}deg` }}
+                      onAnimationEnd={() => setSplashes((items) => items.filter((item) => item.id !== splash.id))}
+                    >
+                      <path d="M50 26C57 26 58 32 63 32L76 23Q82 20 79 27L71 40C77 45 73 49 79 53L90 59Q94 64 87 64L73 61C68 64 66 65 66 72L69 84Q68 90 64 84L55 73C49 71 46 76 41 71L28 82Q22 84 25 77L32 64C28 59 24 59 18 60Q10 58 18 54L28 49C31 44 25 39 30 34L24 21Q24 15 29 20L41 31C45 31 45 26 50 26Z" />
+                      <circle cx="16" cy="32" r="4" /><circle cx="44" cy="13" r="3" />
+                      <circle cx="85" cy="39" r="3.5" /><circle cx="81" cy="79" r="3" />
+                      <circle cx="43" cy="88" r="2.5" /><circle cx="13" cy="72" r="2" />
+                    </svg>
+                  ))}
+                </div>
+                {editingJoints && (
+                  <svg className="hide-joint-overlay" viewBox={`${-JOINT_VIEW_SIZE / 2} ${-JOINT_VIEW_SIZE / 2} ${JOINT_VIEW_SIZE} ${JOINT_VIEW_SIZE}`}>
+                    {active.joints.map((limb, index) => {
+                      const points = Object.fromEntries(["root", "bend", "end"].map((handle) =>
+                        [handle, toFigurePoint(limb[handle], active.rotation, { x: 0, y: 0 })],
+                      ));
+                      return (
+                        <g key={limb.label}>
+                          <path
+                            className="hide-joint-bones"
+                            d={`M${points.root.x} ${points.root.y} L${points.bend.x} ${points.bend.y} L${points.end.x} ${points.end.y}`}
+                          />
+                          {["bend", "end"].map((handle) => {
+                            const point = points[handle];
+                            const label = `${limb.label}の${jointLabel(index, handle)}`;
+                            return (
+                              <g
+                                key={handle}
+                                className="hide-joint-handle"
+                                role="button"
+                                tabIndex={0}
+                                aria-label={label}
+                                onPointerDown={onJointDown(index, handle)}
+                                onPointerMove={onJointMove}
+                                onPointerUp={onPointerUp}
+                                onPointerCancel={onPointerUp}
+                                onLostPointerCapture={onPointerUp}
+                                onKeyDown={onJointKey(index, handle)}
+                              >
+                                <title>{label}</title>
+                                <circle cx={point.x} cy={point.y} r="9" fill="transparent" />
+                                <circle className="hide-joint-dot" cx={point.x} cy={point.y} r="3.5" />
+                              </g>
+                            );
+                          })}
+                        </g>
+                      );
+                    })}
+                  </svg>
+                )}
+              </div>
+            </div>
+            {/* 操作欄は同じ領域に重ね、非表示の欄も高さを確保する。 */}
+            <div className="hide-mode-stack hide-paint-details">
+              <div className={tool === "pen" ? undefined : "is-inactive"}
+                aria-hidden={tool !== "pen"}>
+                <InlineColorPicker color={color} onChange={(value) => { if (canEdit()) setColor(value); }}>
+                  {hasEyeDropper && (
+                    <button onClick={pickColor} title="配置場所の背景から色を拾う">
+                      <Icon name="eyedropper" /> スポイト
+                    </button>
+                  )}
+                  <button onClick={() => editPaint("fillAll", color)} title="全体を今の色で1回塗る">
+                    <Icon name="fill" /> 全体塗り
+                  </button>
+                  <button onClick={resetColor} title="塗った色をすべて消して白に戻す">
+                    色をリセット
+                  </button>
+                </InlineColorPicker>
+              </div>
+              <div className={`hide-joint-help${editingJoints ? "" : " is-inactive"}`}
+                aria-hidden={!editingJoints}>
+                <p>ひじ・ひざで向きを、手首・足首で曲がり具合を調整できます。緑の点をドラッグするか、選んだ関節を矢印キーで動かしてください。</p>
+                <button onClick={resetPoseAndRotation}>
+                  ポーズ・角度をリセット
+                </button>
+              </div>
+              <p className={`hide-eraser-help${tool === "eraser" ? "" : " is-inactive"}`}
+                aria-hidden={tool !== "eraser"}>
+                ドラッグした部分を白に戻します。
+              </p>
+            </div>
+            <footer className="hide-paint-footer">
+              <button className="primary" onClick={closePaint}>
+                完了
+              </button>
+            </footer>
+          </div>
+        </dialog>
+      )}
+
+      {showHelp && (
+        <div className="modal-backdrop" onClick={() => setShowHelp(false)}>
+          <div
+            className="modal help-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2>隠れるモードの遊び方</h2>
+            <p>
+              人型のカメレオンをページのどこかに置き、背景になじむように色を塗って隠しましょう。
+              「ここに隠れる！」を押すと保存され、見つけるモードで他の人に探してもらえます。
+            </p>
+            <p>隠す制限時間は5分です。時間が来ると編集が終了し、その時点の状態で保存できます。</p>
+            <h3>ツール</h3>
+            <dl>
+              {TOOLS.map((t) => (
+                <div key={t.key}>
+                  <dt>
+                    <ToolIcon name={t.key} /> {t.label}
+                  </dt>
+                  <dd>{t.hint}</dd>
+                </div>
+              ))}
+            </dl>
+            <h3>その他</h3>
+            <ul>
+              <li>「体型」で細め・標準・太めを切り替えられます。塗りと関節のポーズは引き継がれます。</li>
+              <li>
+                「ポーズ・角度」の画面で、
+                <Icon name="rotateLeft" /> <Icon name="rotateRight" />
+                を押すと全体の角度を15度ずつ調整できます。角度の数字を押すとまっすぐに戻ります。
+              </li>
+              <li>
+                <Icon name="decoy" /> デコイ（ニセモノ）を最大{MAX_DECOYS}
+                体まで置けます。デコイをクリックした人は残り時間が減ります。
+              </li>
+              <li>
+                Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift
+                を押しながらだと10pxずつ移動します。
+              </li>
+            </ul>
+            <div className="modal-actions">
+              <button className="primary" onClick={() => setShowHelp(false)}>
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {timeUp && !savedId && (
+        <div className="modal-backdrop">
+          <div className="modal hide-timeup" role="dialog" aria-modal="true" aria-labelledby="hide-timeup-title">
+            <h2 id="hide-timeup-title">タイムアップ！</h2>
+            <p>5分が経過したので、編集を終了しました。<br />今の色・ポーズ・場所で隠せます。</p>
+            <input type="text" aria-label="カメレオンの名前" placeholder="カメレオンの名前"
+              maxLength={20} value={name} onChange={(e) => setName(e.target.value)} disabled={saving} autoFocus />
+            {error && <p className="error" role="alert">{error}</p>}
+            <div className="modal-actions">
+              <button className="primary" onClick={save} disabled={saving}>
+                {saving ? "保存中…" : "この状態で隠す"}
+              </button>
+              <a className="button" href={`#/hide?site=${siteId}&t=${Date.now()}`}>もう一度</a>
+              <a className="button" href="#/">ホームへ</a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {savedId && (
         <div className="modal-backdrop">
           <div className="modal">
