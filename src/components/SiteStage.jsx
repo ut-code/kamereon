@@ -30,6 +30,20 @@ const SiteStage = forwardRef(function SiteStage({ siteId, zoom = 1, onReady, ove
         y: (el.scrollTop + el.clientHeight / 2) / zoom,
       };
     },
+    // 今見えている範囲（ページ座標）。ズームと横スクロールも反映する。
+    viewRect() {
+      const el = scrollRef.current;
+      return {
+        left: el.scrollLeft / zoom,
+        right: (el.scrollLeft + el.clientWidth) / zoom,
+        top: el.scrollTop / zoom,
+        bottom: (el.scrollTop + el.clientHeight) / zoom,
+      };
+    },
+    // 画面上の px 単位で即座にスクロールする
+    scrollBy(dx, dy) {
+      scrollRef.current.scrollBy(dx, dy);
+    },
     scrollToPoint(x, y, behavior = 'smooth') {
       const el = scrollRef.current;
       el.scrollTo({ left: x * zoom - el.clientWidth / 2, top: y * zoom - el.clientHeight / 2, behavior });
