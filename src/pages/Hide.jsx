@@ -8,7 +8,6 @@ import {
   toFigurePoint, fromFigurePoint,
 } from "./hideJoints.js";
 import { api } from "../api.js";
-import { addMyId } from "../myChameleons.js";
 import "./Hide.css";
 
 const TOOLS = [
@@ -1140,7 +1139,6 @@ export default function Hide({ siteId }) {
         ...toData(main),
         decoys: figs.filter((f) => f.decoy).map(toData),
       });
-      addMyId(id);
       setSavedAt(submittedAt);
       setSavedId(id);
     } catch (err) {
