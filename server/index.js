@@ -121,7 +121,7 @@ app.post('/api/games', (req, res) => {
 app.post('/api/games/:gameId/found', (req, res) => {
   const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
   if (!game) return res.status(404).json({ error: 'game not found' });
-  const { chameleonId } = req.body ?? {};
+  const { chameleonId, score = 0 } = req.body ?? {};
   const ids = JSON.parse(game.chameleon_ids);
   const found = JSON.parse(game.found_ids);
   if (!ids.includes(chameleonId)) return res.status(400).json({ error: 'not in this game' });
@@ -131,9 +131,67 @@ app.post('/api/games/:gameId/found', (req, res) => {
   if (found.includes(chameleonId)) return res.json({ ok: true, alreadyFound: true });
 
   found.push(chameleonId);
-  db.prepare('UPDATE games SET found_ids = ? WHERE id = ?').run(JSON.stringify(found), game.id);
+  const newScore = Math.round((game.score || 0) + score);
+  db.prepare('UPDATE games SET found_ids = ?, score = ? WHERE id = ?').run(JSON.stringify(found), newScore, game.id);
   db.prepare('UPDATE chameleons SET found = found + 1 WHERE id = ?').run(chameleonId);
   res.json({ ok: true });
+});
+
+app.post('/api/games/:gameId/finish-hide-scores', (req, res) => {
+  const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
+  if (!game) return res.status(404).json({ error: 'game not found' });
+  if (game.finished) return res.json({ ok: true });
+  const { hideScores = {} } = req.body ?? {};
+  const ids = JSON.parse(game.chameleon_ids);
+  const entries = Object.entries(hideScores ?? {});
+  if (entries.length !== ids.length || entries.some(([id, data]) => !ids.includes(id) || !data ||
+    typeof data.wasVisible !== 'boolean' || !Number.isFinite(data.score) || data.score < 0)) {
+    return res.status(400).json({ error: 'invalid hide scores' });
+  }
+
+  const updateStmt = db.prepare(`
+    UPDATE chameleons 
+    SET total_hide_score = total_hide_score + ?,
+        view_count = view_count + 1 
+    WHERE id = ?
+  `);
+
+  // 評価の加算と終了フラグを一括保存し、再送時の二重計上を防ぐ。
+  db.exec('BEGIN');
+  try {
+    for (const [id, data] of entries) {
+      if (data.wasVisible) updateStmt.run(Math.round(data.score), id);
+    }
+    db.prepare('UPDATE games SET finished = 1 WHERE id = ?').run(game.id);
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+  res.json({ ok: true });
+});
+
+app.get('/api/rankings/finder', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT id, COALESCE(NULLIF(player_name, ''), 'ななしのハンター') AS player_name, CAST(score AS INTEGER) AS score, started_at 
+    FROM games 
+    WHERE CAST(score AS INTEGER) > 0 AND CAST(score AS INTEGER) > 0
+    ORDER BY score DESC 
+    LIMIT 10
+  `).all();
+  res.json(rows);
+});
+
+app.get('/api/rankings/hider', (_req, res) => {
+  const rows = db.prepare(`
+    SELECT id, name, site, searched, found, total_hide_score, view_count,
+           total_hide_score * 1.0 / view_count AS avg_score
+    FROM chameleons 
+    WHERE view_count >= 3
+    ORDER BY avg_score DESC, view_count DESC 
+    LIMIT 10
+  `).all();
+  res.json(rows);
 });
 
 app.get('/api/stats', (_req, res) => {
