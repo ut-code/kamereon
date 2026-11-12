@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n api,web -c blue,green \"node --watch server/index.js\" \"vite\"",
-    "build": "vite build",
+    "build": "vite build && node scripts/copy-sites.js",
     "start": "node server/index.js",
+    "dev:worker": "npm run build && npm run db:migrate:local && wrangler dev --local",
+    "db:migrate:local": "wrangler d1 migrations apply kamereon-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply kamereon-db --remote",
+    "deploy": "npm run build && wrangler deploy",
     "snapshot": "node scripts/snapshot.js"
   },
   "dependencies": {
@@ -17,6 +21,10 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "wrangler": "^4.160.1"
+  },
+  "overrides": {
+    "iconv-lite": "0.7.2"
   }
 }
