@@ -1,0 +1,188 @@
+/*
+ * 見つける画面（プレイ中・終了・スタート前のモーダル）。値は kamereon-design の src/screens/b-flow.css と同じ
+ * 舞台（SiteStage）の座標を使うので、舞台とその親は傾けない。傾けるのは帯の中の札とボタンだけ
+ */
+
+/* ---- 上の帯。左：ホーム・モード名・倍率／真ん中：残り時間か結果／右：残りの数とボタン ---- */
+
+.b-hud {
+  position: relative;
+  z-index: 15;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas: "start center end";
+  align-items: center;
+  gap: 24px;
+  flex: none;
+  min-height: 84px;
+  padding: 0 24px;
+  background: var(--paper);
+  box-shadow: 0 5px 0 rgba(42, 22, 80, .4);
+}
+.b-hud__group { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.b-hud__group--start { grid-area: start; }
+.b-hud__center { display: flex; grid-area: center; justify-content: center; }
+.b-hud__group--end { grid-area: end; justify-content: flex-end; }
+.b-hud .b-tab { height: 42px; padding: 0 14px; font-size: 16px; }
+.b-hud__zoom { display: flex; align-items: center; gap: 10px; padding-left: 8px; color: var(--muted); font-size: 14px; font-weight: 800; white-space: nowrap; }
+.b-hud__zoom-value { min-width: 4.5ch; font-variant-numeric: tabular-nums; }
+.b-hud__error { padding: 4px 10px; background: var(--hide); font-size: 14px; font-weight: 800; }
+
+/* 終わったときにタイマーの代わりに出す札。タイムアップは桃色、全員発見は黄緑、途中で終了は白 */
+.b-result {
+  padding: 4px 22px 8px;
+  background: var(--fill);
+  box-shadow: 0 4px 0 rgba(42, 22, 80, .4);
+  font: 400 32px var(--font-display);
+  white-space: nowrap;
+  transform: rotate(var(--tilt, 0deg));
+  animation: find-result-pop .4s ease-out;
+}
+.b-result.b-fill--paper { outline: 2px solid rgba(42, 22, 80, .55); }
+.b-result-summary { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 0; }
+.b-result-score { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.b-player-name { display: grid; justify-items: start; gap: 8px; font-size: 15px; font-weight: 800; }
+.b-player-name .b-input { max-width: 100%; }
+
+.b-cooldown { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.b-found { display: flex; align-items: center; gap: 4px; }
+.b-found__icon { color: #E2D8F5; }
+.b-found__icon.is-found { color: var(--hide); animation: find-icon-pop .3s cubic-bezier(.175, .885, .32, 1.275); }
+.b-count { font-size: 24px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.b-count small { color: var(--muted); font-size: 15px; }
+
+/* 狭い画面では2段にする（上：ホーム側と残り時間、下：残りの数とボタン） */
+@media (max-width: 1100px) {
+  .b-hud { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "start center" "end end"; row-gap: 10px; padding: 10px 16px 14px; }
+}
+
+/* ---- 照準。直径 100px の円と破線の十字（濃い紫の縁取りに黄緑）。ホットスポットは中心 ---- */
+/* 大きさは Find.jsx の RETICLE_RADIUS_PX（影を出す円の半径）と合わせている */
+.stage-overlay.seeking {
+  pointer-events: auto;
+  cursor:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 50 50'%3E%3Cg fill='none'%3E%3Ccircle cx='25' cy='25' r='24' stroke='%232A1650' stroke-opacity='.55' stroke-width='2.4'/%3E%3Ccircle cx='25' cy='25' r='24' stroke='%23C5F04A' stroke-width='1.2'/%3E%3Cpath d='M25 1V49M1 25H49' stroke='%23C5F04A' stroke-width='0.35' stroke-opacity='1' stroke-dasharray='4 3'/%3E%3C/g%3E%3C/svg%3E")
+      50 50,
+    crosshair;
+}
+
+/* ---- 舞台の上のカメレオンと印 ---- */
+
+.chameleon-slot {
+  position: absolute;
+  pointer-events: none;
+  isolation: isolate; /* 影 (z-index: -1) を本体の後ろ・スロット内に収める */
+}
+.chameleon-slot img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  user-select: none;
+}
+/* 懐中電灯（照準）に照らされたときの影。濃さはゲームの難しさに関わるので、前の値のまま */
+.chameleon-slot img.flashlight-shadow {
+  position: absolute;
+  z-index: -1;
+  filter: brightness(0) blur(1.5px);
+  opacity: .1;
+}
+/* 見つけた（黄緑）・見逃した（桃色）の輪 */
+.chameleon-slot.found::after,
+.chameleon-slot.missed::after,
+.chameleon-slot.blinking::after {
+  content: "";
+  position: absolute;
+  inset: -14px -16px;
+  border: 5px solid var(--find);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--ink), inset 0 0 0 2px var(--ink);
+  animation: find-ring-pop .4s ease-out;
+}
+.chameleon-slot.missed::after { border-color: var(--hide); }
+/* 見つけた直後は輪を点滅させる */
+.chameleon-slot.blinking::after { animation: find-ring-blink .4s infinite alternate; }
+/* デコイ。押してしまったものと、終わったときに見せるものは破線の四角 */
+.chameleon-slot.decoy.tripped::after,
+.chameleon-slot.decoy.exposed::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border: 3px dashed var(--camo);
+  border-radius: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .8);
+  animation: none;
+}
+.chameleon-slot.decoy.tripped img { opacity: .5; }
+
+/* 名前の札。輪の上に少し傾けて貼る */
+.slot-label {
+  position: absolute;
+  z-index: 1;
+  bottom: calc(100% + 22px);
+  left: 50%;
+  padding: 3px 10px 4px;
+  background: var(--paper);
+  box-shadow: 0 3px 0 var(--shadow-color);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  transform: translateX(-50%) rotate(-3deg);
+}
+.chameleon-slot.found .slot-label { background: var(--find); }
+.chameleon-slot.missed .slot-label { background: var(--hide); }
+.chameleon-slot.decoy .slot-label { background: var(--camo); color: var(--paper); }
+
+/* 外したときの × と、デコイを押したときの札 */
+.miss-mark {
+  position: absolute;
+  z-index: 2;
+  color: var(--hide);
+  font: 800 34px/1 var(--font-body);
+  text-shadow: 2px 2px 0 var(--ink);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: find-miss .7s ease-out forwards;
+}
+.miss-mark.decoy {
+  padding: 4px 14px 6px;
+  background: var(--hide);
+  box-shadow: 0 4px 0 var(--shadow-color);
+  color: var(--ink);
+  font: 400 20px var(--font-display);
+  text-shadow: none;
+  white-space: nowrap;
+  animation: find-decoy 1.2s ease-out forwards;
+}
+
+/* ---- スタート前のモーダル ---- */
+
+.b-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; padding: 4px 0; }
+.b-stats > div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 8px 10px; background: var(--fill); box-shadow: 0 4px 0 rgba(42, 22, 80, .4); transform: rotate(var(--tilt, 0deg)); }
+.b-stats strong { font-size: 30px; font-weight: 800; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.b-stats span { font-size: 13px; font-weight: 800; }
+@media (max-width: 520px) {
+  .b-stats { gap: 10px; }
+  .b-stats strong { font-size: 22px; }
+}
+
+/* ---- 動き ---- */
+
+@keyframes find-result-pop { from { opacity: 0; transform: rotate(var(--tilt, 0deg)) scale(1.6); } }
+@keyframes find-icon-pop { from { transform: scale(2.2); } }
+@keyframes find-ring-pop { from { opacity: 0; transform: scale(2); } }
+@keyframes find-ring-blink { to { opacity: .2; transform: scale(1.15); } }
+@keyframes find-miss { to { opacity: 0; transform: translate(-50%, -90%); } }
+@keyframes find-decoy {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(-4deg) scale(.6); }
+  15% { opacity: 1; transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
+  70% { opacity: 1; transform: translate(-50%, -75%) rotate(-4deg); }
+  100% { opacity: 0; transform: translate(-50%, -95%) rotate(-4deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .b-result,
+  .b-found__icon.is-found,
+  .chameleon-slot.found::after,
+  .chameleon-slot.missed::after { animation: none; }
+}

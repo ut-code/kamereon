@@ -558,7 +558,7 @@ export class JointPainter extends Painter {
   }
 
   render() {
-    
+
     /*return super.render();*/
 
     if (!this.lighting) return super.render();

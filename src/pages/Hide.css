@@ -1,150 +1,137 @@
-.hide-timer {
+/*
+ * 隠す画面。値は kamereon-design の src/screens/b-flow.css と同じ
+ * 色塗り・ポーズのダイアログは位置と大きさを Hide.jsx が決める（人型の横に置き、タイマーを避ける）ので、ここでは決めない
+ * 舞台・ダイアログ・拡大表示・色選びは座標を測るので傾けない。傾けるのは帯の中の札とボタンだけ
+ */
+
+/* ---- 上の帯。上の段はモード名・残り時間と保存、下の段は道具・体型・デコイ ---- */
+
+.b-tools {
   position: relative;
-  flex: 0 0 110px;
-  width: 110px;
-  height: 60px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
-
-.hide-timer .gauge-svg {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
-.hide-timer .gauge-progress {
-  transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
-}
-
-.hide-timer .digital-clock {
-  position: absolute;
-  bottom: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: "Courier New", Courier, monospace, sans-serif;
-  font-weight: 900;
-  font-size: 19px;
-  color: var(--ink);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.5px;
-  white-space: nowrap;
-}
-
-.hide-timer.danger .gauge-progress {
-  stroke: var(--danger);
-  animation: hide-timer-pulse 1s infinite alternate;
-}
-
-.hide-timer.danger .digital-clock {
-  color: var(--danger);
-}
-
-@keyframes hide-timer-pulse {
-  from { opacity: 1; }
-  to { opacity: 0.4; }
-}
-
-.hide-timeup .modal-actions {
-  flex-wrap: wrap;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hide-timer.danger .gauge-progress { animation: none; }
-}
-
-.hide-figure-options {
-  max-width: 100%;
-  grid-template-columns: auto auto;
-}
-
-.hide-figure-options > .tool-group {
-  grid-column: 1;
-  flex-wrap: wrap;
-}
-
-.hide-body-picker {
-  flex-shrink: 0;
-}
-
-.hide-body-label {
-  display: block;
-  margin-bottom: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.hide-body-choices {
-  display: flex;
-  gap: 6px;
-}
-
-.hide-body-choice {
+  z-index: 15;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  flex: none;
+  padding: 12px 24px 14px;
+  background: var(--paper);
+  box-shadow: 0 5px 0 rgba(42, 22, 80, .4);
+}
+.b-tools__row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; }
+.b-tools__group { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; min-width: 0; }
+.b-tools .b-tab { height: 40px; padding: 0 12px; font-size: 16px; }
+.b-tools .b-tab--icon { width: 44px; padding: 0; }
+.b-tools .b-sticker--s { height: 44px; }
+.b-tools .b-input { width: 200px; height: 40px; }
+.b-tools .b-timer--hide { margin-left: 8px; }
+.b-tools__sep { width: 2px; height: 30px; background: var(--line); }
+
+/* 遊び方を開く「?」 */
+.b-help {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 4px solid var(--paper);
+  border-radius: 0;
+  background: var(--accent);
+  box-shadow: 0 3px 0 rgba(42, 22, 80, .4);
+  color: var(--ink);
+  font: 400 22px/1 var(--font-display);
+  cursor: pointer;
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform .12s ease-out;
+}
+.b-help:hover { transform: translateY(-2px); }
+.b-help:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* 体型の切り替え。選んだ体型は桃色 */
+.b-bodypick { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; }
+.b-bodypick__choice {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  width: 60px;
-  padding: 6px;
-  font-size: 12px;
-  line-height: 1.3;
+  height: 44px;
+  padding: 0 10px 0 6px;
+  border: 0;
+  border-radius: 0;
+  background: var(--sub);
+  color: var(--ink);
+  font: 800 14px var(--font-body);
+  cursor: pointer;
 }
+.b-bodypick__choice[aria-pressed="true"] { background: var(--hide); box-shadow: 0 3px 0 rgba(42, 22, 80, .4); }
+.b-bodypick__choice:disabled { opacity: .5; cursor: default; }
+.b-bodypick__choice:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.hide-body-preview { display: block; width: auto; height: 36px; pointer-events: none; }
 
-.hide-body-choice[aria-pressed="true"] {
-  border-color: var(--green-dark);
-  background: #e8f4e5;
-  box-shadow: inset 0 0 0 1px var(--green-dark);
-  color: var(--green-dark);
+/* 帯の下の1行。編集中の人型と位置 */
+.b-hint {
+  position: relative;
+  z-index: 14;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  flex: none;
+  min-height: 36px;
+  padding: 4px 24px;
+  background: var(--sub);
+  font-size: 14px;
   font-weight: 700;
 }
+.b-hint strong { padding: 2px 10px; background: var(--hide); font-weight: 800; }
+.b-hint__error { padding: 2px 10px; background: var(--ink); color: var(--paper); font-weight: 800; }
 
-.hide-body-choice:focus-visible {
-  outline: 2px solid var(--green-dark);
-  outline-offset: 3px;
-}
+/* ---- 舞台の上の人型（本体とデコイ） ---- */
 
-.hide-body-preview {
-  display: block;
-  width: auto;
-  height: 56px;
-  pointer-events: none;
-}
-
-.chameleon.is-carried {
-  opacity: 0;
-  cursor: grabbing;
-}
-
-.hide-carried-figure {
+.chameleon {
   position: absolute;
-  z-index: 2;
-  pointer-events: none;
-  user-select: none;
+  pointer-events: auto;
+  touch-action: none;
+  image-rendering: auto;
 }
+/* 枠：本体は桃色、デコイは紫。選んでいるものは実線で太く */
+.chameleon.outlined { outline: 2px dashed var(--hide); outline-offset: 2px; }
+.chameleon.outlined.decoy { outline-color: var(--camo); }
+.chameleon.outlined.active { outline-style: solid; outline-width: 3px; }
+.chameleon.tool-move { cursor: grab; }
+.chameleon.tool-move:active { cursor: grabbing; }
+.chameleon.tool-pen { cursor: crosshair; }
+.chameleon.tool-eraser { cursor: cell; }
+.chameleon.is-carried { opacity: 0; cursor: grabbing; }
 
-.hide-carried-layer {
+/* 人型の左上に貼る名前の札 */
+.fig-tag {
   position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
+  z-index: 1;
+  margin-left: -6px;
+  padding: 3px 10px 4px;
+  background: var(--hide);
+  box-shadow: 0 3px 0 var(--shadow-color);
+  color: var(--ink);
+  font: 800 13px/1.2 var(--font-body);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(calc(-100% - 8px)) rotate(-3deg);
+  transform-origin: left bottom;
 }
+.fig-tag.decoy { background: var(--camo); color: var(--paper); }
 
+/* 持ち上げて運んでいる間の姿（手足がぶらぶら揺れる） */
+.hide-carried-figure { position: absolute; z-index: 2; pointer-events: none; user-select: none; }
+.hide-carried-layer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
 .hide-carried-limb {
   animation: hide-limb-flutter var(--flutter-duration) ease-in-out var(--flutter-delay) infinite;
   will-change: transform;
 }
-
 @keyframes hide-limb-flutter {
   0%, 100% { transform: rotate(calc(-1 * var(--flutter-angle))); }
   50% { transform: rotate(var(--flutter-angle)); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .hide-carried-limb { animation: none; transform: none; }
-}
+/* ---- 色塗り・ポーズのダイアログ。白い紙をテープで留める（傾けない） ---- */
 
 .hide-paint-modal {
   position: fixed;
@@ -154,369 +141,75 @@
   max-width: none;
   max-height: calc(100dvh - 24px);
   padding: 0;
-  border: 1px solid var(--line);
-  border-radius: 20px;
+  border: 0;
+  border-radius: 0;
+  background: var(--paper);
+  box-shadow: 0 6px 0 rgba(42, 22, 80, .4), 0 18px 50px rgba(42, 22, 80, .25);
   color: var(--ink);
-  background: var(--panel);
-  box-shadow: 0 24px 80px #142b2240;
-  overflow: hidden;
+  font-family: var(--font-body);
+  /* テープを紙の外にはみ出させる。中身のはみ出しは .hide-paint-panel で切る */
+  overflow: visible;
 }
-
-.hide-paint-modal::backdrop {
-  background: transparent;
-}
-
-.hide-paint-modal.is-picking-color {
-  pointer-events: none;
-}
-
-.hide-paint-modal.is-picking-color::backdrop {
-  background: transparent;
-  backdrop-filter: none;
-}
+.hide-paint-modal > .b-tape { z-index: 1; }
+.hide-paint-modal::backdrop { background: transparent; }
+/* スポイトで色を拾う間は、ダイアログを素通りさせて背景を見せる */
+.hide-paint-modal.is-picking-color { pointer-events: none; }
+.hide-paint-modal.is-picking-color::backdrop { background: transparent; backdrop-filter: none; }
 
 .hide-paint-panel {
-  height: 100%;
-  min-height: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-  gap: 8px;
-  padding: 12px;
-}
-
-.hide-paint-header,
-.hide-paint-row,
-.hide-paint-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.hide-paint-header {
-  justify-content: center;
-  height: 10px;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
-.hide-paint-modal.is-panel-dragging .hide-paint-header {
-  cursor: grabbing;
-}
-
-.hide-paint-grip {
-  width: 40px;
-  height: 4px;
-  border-radius: 99px;
-  background: var(--line);
-}
-
-.hide-paint-close {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  font-size: 24px;
-  line-height: 1;
-}
-
-.hide-paint-controls {
-  display: grid;
-  gap: 6px;
-}
-
-.hide-paint-controls button {
-  padding: 5px 8px;
-  font-size: 12px;
-}
-
-.hide-paint-row,
-.hide-paint-row .tool-group {
-  gap: 6px;
-}
-
-.hide-paint-row {
-  flex-wrap: wrap;
-}
-
-.hide-paint-row .tool-group {
-  flex-wrap: wrap;
-}
-
-.hide-color-picker {
-  margin-top: 0;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fafcf9;
-}
-
-.hide-color-picker-header,
-.hide-color-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.hide-color-picker-header {
-  justify-content: space-between;
-  margin-bottom: 6px;
-}
-
-.hide-color-picker h3 {
-  margin: 0;
-  color: var(--green-dark);
-  font-size: 13px;
-}
-
-.hide-color-actions button {
-  padding: 4px 6px;
-  font-size: 11px;
-}
-
-.hide-color-picker-body {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
-  gap: 12px;
-}
-
-.hide-color-mode-switch {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 6px;
-}
-
-.hide-color-mode-switch button {
-  padding: 4px 6px;
-  font-size: 11px;
-}
-
-.hide-color-mode-switch button[aria-pressed="true"] {
-  color: var(--green-dark);
-  background: #e8f4e5;
-  border-color: var(--green-dark);
-  font-weight: 700;
-}
-
-.hide-color-mode-panels {
-  display: grid;
-}
-
-.hide-color-mode-panel {
-  grid-area: 1 / 1;
-  min-width: 0;
-}
-
-.hide-color-mode-panel.is-inactive {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.hide-color-selection {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 6px;
-  font-size: 12px;
-}
-
-.hide-color-selection > span:last-child {
-  font-family: ui-monospace, monospace;
-}
-
-.hide-color-palette .hide-color-presets {
-  grid-template-columns: repeat(24, minmax(0, 1fr));
-  gap: 2px;
-  height: min(190px, 24dvh);
-  grid-auto-rows: minmax(0, 1fr);
-  padding: 3px;
-}
-
-.hide-color-palette .hide-color-presets button {
-  min-height: 0;
+  gap: 10px;
   height: 100%;
-  padding: 0;
-  border-radius: 3px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px 18px 16px;
 }
 
-.hide-color-spectrum {
-  position: relative;
-  min-height: 70px;
-  border: 1px solid #0002;
-  border-radius: 8px;
-  background: linear-gradient(to top, #000, transparent),
-    linear-gradient(to right, #fff, transparent), hsl(var(--picker-hue) 100% 50%);
-  cursor: crosshair;
-  touch-action: none;
-}
+/* 上の取っ手。ドラッグでダイアログを動かす */
+.hide-paint-header { display: flex; align-items: center; justify-content: center; height: 16px; cursor: grab; touch-action: none; user-select: none; }
+.hide-paint-modal.is-panel-dragging .hide-paint-header { cursor: grabbing; }
+.hide-paint-grip { width: 64px; height: 6px; background: var(--line); }
 
-.hide-color-cursor {
-  position: absolute;
-  width: 12px;
-  height: 12px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px #0008;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
+.hide-paint-controls { display: grid; gap: 10px; }
+.hide-paint-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.hide-paint-group { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hide-paint-modal .b-tab { height: 38px; padding: 0 12px; font-size: 15px; }
+.hide-paint-modal .b-tab--icon { width: 42px; padding: 0; }
+.hide-paint-label { font-size: 14px; font-weight: 800; white-space: nowrap; }
+.rotation-value { min-width: 64px; font-variant-numeric: tabular-nums; }
+.hide-paint-size { display: flex; align-items: center; gap: 12px; }
+.hide-paint-size .b-range { flex: 1; min-width: 0; max-width: 260px; }
+.hide-paint-size-value { min-width: 3ch; font-size: 14px; font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
 
-.hide-color-settings {
-  display: grid;
-  align-content: space-between;
-  gap: 8px;
-  min-width: 0;
-}
+/* 同じ場所に重ねた欄（角度と太さ、色選び・関節の説明・消しゴムの説明）。隠れている欄も高さを取る */
+.hide-mode-stack { display: grid; }
+.hide-mode-stack > * { grid-area: 1 / 1; min-width: 0; }
+.hide-mode-stack > .is-inactive { visibility: hidden; pointer-events: none; }
 
-.hide-color-hex,
-.hide-color-hue {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.hide-color-hex > span:not(.hide-color-preview) {
-  white-space: nowrap;
-}
-
-.hide-color-preview {
-  flex: 0 0 26px;
-  height: 26px;
-  border: 1px solid #0002;
-  border-radius: 6px;
-}
-
-.hide-color-hex input {
-  min-width: 0;
-  width: 100%;
-  padding: 5px 6px;
-  font-size: 12px;
-  font-family: ui-monospace, monospace;
-}
-
-.hide-color-hue input {
-  min-width: 0;
-  width: 100%;
-  height: 12px;
-  margin: 0;
-  border: 1px solid #0002;
-  border-radius: 999px;
-  appearance: none;
-  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
-  cursor: pointer;
-}
-
-.hide-color-hue input::-webkit-slider-thumb {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  appearance: none;
-  background: var(--ink);
-  box-shadow: 0 0 0 1px #0006;
-}
-
-.hide-color-hue input::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #fff;
-  border-radius: 50%;
-  background: var(--ink);
-  box-shadow: 0 0 0 1px #0006;
-}
-
-.hide-color-swatches {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 5px;
-}
-
-.hide-color-swatches button {
-  min-width: 0;
-  height: 24px;
-  padding: 0;
-  border: 1px solid #0003;
-  border-radius: 5px;
-}
-
-.hide-color-swatches button[aria-pressed="true"] {
-  outline: 2px solid var(--green-dark);
-  outline-offset: 2px;
-}
-
-.hide-color-spectrum:focus-visible,
-.hide-color-swatches button:focus-visible,
-.hide-color-hue input:focus-visible {
-  outline: 2px solid var(--green-dark);
-  outline-offset: 3px;
-}
-
-.hide-mode-stack {
-  display: grid;
-}
-
-.hide-mode-stack > * {
-  grid-area: 1 / 1;
-  min-width: 0;
-}
-
-.hide-mode-stack > .is-inactive {
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.hide-paint-details .hide-joint-help,
-.hide-eraser-help {
-  align-self: start;
-  margin: 0;
-  padding: 8px;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.hide-color-hue > span {
-  margin-right: auto;
-  flex-shrink: 0;
-}
-
-.hide-paint-size {
-  gap: 12px;
-}
-
-.hide-paint-size input {
-  min-width: 0;
-  accent-color: var(--green);
-}
-
+/* 配置場所の背景ごと拡大した人型 */
 .hide-paint-surface {
   position: relative;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
   min-height: 0;
   padding: 8px;
   container-type: size;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border: 3px solid var(--ink);
   overflow: hidden;
-  background: #e5ebe2;
+  background: var(--sub);
 }
-
 .hide-paint-background {
   position: absolute;
-  left: 50%;
   top: 50%;
+  left: 50%;
   display: block;
   max-width: none;
   border: 0;
   transform-origin: 0 0;
   pointer-events: none;
 }
-
 .hide-paint-background-loading {
   position: absolute;
   inset: 0;
@@ -524,31 +217,17 @@
   align-items: flex-end;
   justify-content: center;
   padding: 8px;
-  background: #e5ebe2;
+  background: var(--sub);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 800;
   pointer-events: none;
 }
+.hide-paint-figure { position: relative; z-index: 1; width: min(100%, 100cqh); aspect-ratio: 1; }
+.hide-paint-artwork { position: absolute; }
+.hide-paint-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 
-.hide-paint-figure {
-  position: relative;
-  z-index: 1;
-  width: min(100%, 100cqh);
-  aspect-ratio: 1;
-}
-
-.hide-paint-artwork {
-  position: absolute;
-}
-
-.hide-paint-canvas {
-  display: block;
-  width: 100%;
-  height: 100%;
-  touch-action: none;
-  cursor: crosshair;
-}
-
+/* 塗ったときの飛沫（表示だけ） */
 .hide-paint-splash {
   position: absolute;
   z-index: 2;
@@ -558,135 +237,161 @@
   pointer-events: none;
   animation: hide-paint-splash 420ms ease-out forwards;
 }
-
 @keyframes hide-paint-splash {
-  0% {
-    transform: translate(-50%, -50%) scale(0.25) rotate(var(--splash-angle));
-    opacity: 0.9;
-  }
-  35% {
-    transform: translate(-50%, -50%) scale(1) rotate(var(--splash-angle));
-    opacity: 0.8;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1.3) rotate(var(--splash-angle));
-    opacity: 0;
-  }
+  0% { transform: translate(-50%, -50%) scale(.25) rotate(var(--splash-angle)); opacity: .9; }
+  35% { transform: translate(-50%, -50%) scale(1) rotate(var(--splash-angle)); opacity: .8; }
+  100% { transform: translate(-50%, -50%) scale(1.3) rotate(var(--splash-angle)); opacity: 0; }
+}
+
+/* 関節。骨は濃い紫の破線、つまみは黄緑の点（説明の文と色を合わせている） */
+.is-joint-editing .hide-paint-canvas { pointer-events: none; }
+.hide-joint-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; touch-action: none; }
+.hide-joint-bones { fill: none; stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
+.hide-joint-handle { cursor: grab; outline: none; }
+.hide-joint-handle:active { cursor: grabbing; }
+.hide-joint-dot { fill: var(--find); stroke: var(--ink); stroke-width: 1.5; pointer-events: none; }
+.hide-joint-handle:hover .hide-joint-dot,
+.hide-joint-handle:focus .hide-joint-dot { fill: var(--hide); stroke: var(--ink); stroke-width: 2; }
+
+.hide-joint-help { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.hide-joint-help p { flex: 1; margin: 0; color: var(--muted); font-size: 13px; font-weight: 700; line-height: 1.6; }
+.hide-eraser-help { align-self: start; margin: 0; padding: 8px 0; color: var(--muted); font-size: 13px; font-weight: 700; line-height: 1.6; }
+
+.hide-paint-footer { display: flex; justify-content: flex-end; margin: 0; padding-top: 2px; }
+
+/* ---- 色を選ぶ ---- */
+
+.hide-color-picker { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.hide-color-picker-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.hide-color-picker h3 { margin: 0; padding: 2px 12px 4px; background: var(--sub); font: 400 18px var(--font-display); }
+.hide-color-mode-switch,
+.hide-color-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+.hide-color-mode-panels { display: grid; }
+.hide-color-mode-panel { grid-area: 1 / 1; min-width: 0; }
+.hide-color-mode-panel.is-inactive { visibility: hidden; pointer-events: none; }
+.hide-color-picker-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px; }
+
+/* 鮮やかさ（横）と明るさ（縦）を選ぶ四角 */
+.hide-color-spectrum {
+  position: relative;
+  min-height: 90px;
+  background: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent), hsl(var(--picker-hue) 100% 50%);
+  box-shadow: inset 0 0 0 2px var(--ink);
+  cursor: crosshair;
+  touch-action: none;
+}
+.hide-color-cursor {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  box-sizing: border-box;
+  border: 3px solid var(--paper);
+  box-shadow: 0 0 0 2px var(--ink);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.hide-color-settings { display: grid; align-content: space-between; gap: 10px; min-width: 0; }
+.hide-color-hex,
+.hide-color-hue { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; }
+.hide-color-hex > span:not(.hide-color-preview) { white-space: nowrap; }
+.hide-color-hue > span { flex-shrink: 0; margin-right: auto; }
+.hide-color-preview { flex: 0 0 28px; height: 28px; box-shadow: inset 0 0 0 2px var(--line); }
+.hide-color-hex .b-input { width: 100%; min-width: 0; height: 34px; padding: 0 8px; font: 700 13px ui-monospace, monospace; }
+
+/* 色相。虹の帯に白い縁の四角いつまみ */
+.hide-color-hue input {
+  width: 100%;
+  min-width: 0;
+  height: 14px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.hide-color-hue input::-webkit-slider-thumb {
+  width: 12px;
+  height: 24px;
+  border: 3px solid var(--paper);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: 0 0 0 2px var(--ink);
+  -webkit-appearance: none;
+}
+.hide-color-hue input::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 12px;
+  height: 24px;
+  border: 3px solid var(--paper);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+/* 基本の色・パレットの色 */
+.hide-color-swatches { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.hide-color-swatches button {
+  min-width: 0;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: inset 0 0 0 2px var(--line);
+  cursor: pointer;
+}
+.hide-color-swatches button[aria-pressed="true"] { outline: 3px solid var(--ink); outline-offset: 2px; }
+.hide-color-selection { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 13px; font-weight: 800; }
+.hide-color-selection > span:last-child { font-family: ui-monospace, monospace; }
+.hide-color-palette .hide-color-presets { grid-template-columns: repeat(24, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); gap: 2px; height: min(190px, 24dvh); padding: 3px; }
+.hide-color-palette .hide-color-presets button { height: 100%; min-height: 0; box-shadow: none; }
+.hide-color-palette .hide-color-presets button[aria-pressed="true"] { outline-width: 2px; outline-offset: 1px; }
+
+.hide-color-spectrum:focus-visible,
+.hide-color-swatches button:focus-visible,
+.hide-color-hue input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* ---- モーダル ---- */
+
+/* 遊び方 */
+.hide-help.b-modal { width: min(760px, 100%); }
+.hide-help-tools { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.hide-help-tools > div { display: grid; grid-template-columns: 176px minmax(0, 1fr); align-items: center; gap: 14px; }
+.hide-help-tools dt { display: flex; }
+/* 道具の名前の札。押せるボタンではないので、ホバーしても動かさない */
+.hide-help-tools .b-tab,
+.hide-help-tools .b-tab:hover { height: 40px; padding: 0 12px; font-size: 16px; cursor: default; transform: rotate(var(--tilt, 0deg)); box-shadow: 0 3px 0 rgba(42, 22, 80, .4); }
+.hide-help-tools dd { margin: 0; font-size: 16px; font-weight: 500; }
+.hide-help-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 22px; font-size: 16px; font-weight: 500; line-height: 1.6; }
+
+/* タイムアップ・隠れた */
+/* タイムアップはボタンが3つ並ぶので、少し広げて1行に収める */
+.hide-timeup.b-modal { width: min(680px, 100%); }
+.hide-timeup-name.b-input { width: 100%; }
+.hide-saved-head { display: flex; align-items: center; gap: 18px; }
+.hide-saved-head > span { display: flex; transform: rotate(var(--tilt, 0deg)); }
+.hide-saved-figure { color: var(--hide); }
+
+/* ---- 狭い画面 ---- */
+
+@media (max-width: 760px) {
+  .b-tools { padding: 10px 16px 12px; }
+  .b-hint { padding: 4px 16px; }
+  .hide-help-tools > div { grid-template-columns: 1fr; gap: 6px; }
+}
+@media (max-width: 480px) {
+  .hide-paint-panel { gap: 6px; padding: 6px 10px 10px; }
+  .hide-paint-surface { padding: 6px; }
+  .hide-color-picker-body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+  .hide-color-palette .hide-color-presets { grid-template-columns: repeat(16, minmax(0, 1fr)); }
+  .hide-color-hex { flex-wrap: wrap; gap: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hide-paint-splash {
-    display: none;
-  }
-}
-
-.is-joint-editing .hide-paint-canvas {
-  pointer-events: none;
-}
-
-.hide-joint-overlay {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  touch-action: none;
-}
-
-.hide-joint-bones {
-  fill: none;
-  stroke: var(--green-dark);
-  stroke-width: 1;
-  stroke-dasharray: 2 2;
-  pointer-events: none;
-}
-
-.hide-joint-handle {
-  cursor: grab;
-  outline: none;
-}
-
-.hide-joint-handle:active {
-  cursor: grabbing;
-}
-
-.hide-joint-dot {
-  fill: var(--green-dark);
-  stroke: #fff;
-  stroke-width: 1.5;
-  pointer-events: none;
-}
-
-.hide-joint-handle:hover .hide-joint-dot,
-.hide-joint-handle:focus .hide-joint-dot {
-  fill: var(--green);
-  stroke: var(--green-dark);
-  stroke-width: 2;
-}
-
-.hide-joint-help {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-}
-
-.hide-joint-help p {
-  margin: 0;
-  flex: 1;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--muted);
-}
-
-.hide-joint-help button {
-  flex-shrink: 0;
-  font-size: 12px;
-}
-
-.hide-paint-footer {
-  margin-top: 0;
-  justify-content: flex-end;
-}
-
-.hide-paint-footer .primary {
-  min-width: 88px;
-  padding: 6px 16px;
-}
-
-@media (max-width: 480px) {
-  .hide-figure-options {
-    gap: 6px 8px;
-  }
-
-  .hide-paint-panel {
-    padding: 10px;
-    gap: 6px;
-  }
-
-  .hide-paint-surface {
-    padding: 6px;
-  }
-
-  .hide-color-picker-body {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .hide-color-spectrum {
-    min-height: 70px;
-  }
-
-  .hide-color-palette .hide-color-presets {
-    grid-template-columns: repeat(16, minmax(0, 1fr));
-  }
-
-  .hide-color-hex {
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-
-  .hide-color-picker-header {
-    gap: 6px;
-  }
+  .hide-carried-limb { animation: none; transform: none; }
+  .hide-paint-splash { display: none; }
+  .b-help { transition: none; }
 }

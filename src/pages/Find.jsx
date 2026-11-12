@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import SiteStage from '../components/SiteStage.jsx';
 import Icon from '../components/Icon.jsx';
+import { FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from '../components/ui.jsx';
 import { api } from '../api.js';
+import './Find.css';
 
 const ZOOMS = [1, 1.5, 2, 3];
 const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
 const DECOY_PENALTY_SEC = 10; // デコイをクリックしたときに減る時間
 const CLICK_COOLDOWN_MS = 5000; // フィールドをクリックしたあとのクールタイム
-const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。styles.css の .stage-overlay.seeking のカーソルと合わせる
+const DEFAULT_TIME_LIMIT_SEC = 180; // 制限時間（server/index.js の TIME_LIMIT_SEC と同じ）。スタート前は game.timeLimit がまだ無いので、こちらを表示に使う
+const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。Find.css の .stage-overlay.seeking のカーソルと合わせる
 const SHADOW_MIN_OFFSET = 6; // 影のずれの最小値 (ページpx)
 const SHADOW_MAX_EXTRA = 12; // 光源から離れるほど増える影のずれの上限 (ページpx)
 const SHADOW_DIST_RATIO = 0.2; // 光源からの距離に対する影のずれの割合
@@ -308,111 +311,65 @@ export default function Find({ siteId }) {
     return () => clearInterval(interval);
   }, [phase, game]);
 
+  // 終わったときにタイマーの代わりに出す札（タイムアップ・全員発見・途中で終了）
+  const result = remaining <= 0 ? { text: 'タイムアップ！', color: 'hide' }
+    : found.length === total ? { text: '全員発見！', color: 'find' }
+    : { text: '終了', color: 'paper' };
+
   return (
-    <div className="game-page">
-      <header className="toolbar find-toolbar">
-        {/* 左側グループ：ホーム、タイトル、倍率スライダー */}
-        <div className="toolbar-left">
-          <a href="#/" className="toolbar-home">🦎 ホーム</a>
-          <span className="toolbar-title">見つける</span>
-          <div className="tool-group zoom-slider-group">
-            <span className="zoom-label">{Math.round(zoom * 100)}%</span>
-            <input
-              type="range"
-              min="1"
-              max="3"
-              step="0.1"
-              value={zoom}
-              onChange={(e) => setZoom(Number(e.target.value))}
-              className="zoom-slider"
-            />
-          </div>
+    <div className="b-game">
+      <header className="b-hud">
+        {/* 左：ホーム、モード名、倍率 */}
+        <div className="b-hud__group b-hud__group--start">
+          <Tab as="a" href="#/" tilt={-2}>← ホーム</Tab>
+          <span className="b-hud__mode">見つける</span>
+          <label className="b-hud__zoom">
+            <Icon name="search" size={18} />
+            <span className="b-sr-only">表示の倍率</span>
+            <Range min={1} max={3} step={0.1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 110 }} />
+            <span className="b-hud__zoom-value">{Math.round(zoom * 100)}%</span>
+          </label>
         </div>
 
-        {/* 中央グループ：半円ゲージタイマー（完全中央固定） */}
-        <div className="toolbar-center">
-          {game && phase === 'playing' && (() => {
-            const timeLimitSec = (game?.timeLimit ?? 180);
-            const elapsedRatio = Math.min(1, Math.max(0, (timeLimitSec - remaining) / timeLimitSec));
-            const radius = 36;
-            const halfCircumference = Math.PI * radius;
-            const strokeDashoffset = halfCircumference * (1 - elapsedRatio);
-
-            return (
-              <div className={`semi-circle-timer ${remaining < 30 ? 'danger' : ''}`}>
-                <svg viewBox="0 0 100 55" className="gauge-svg">
-                  <path
-                    d="M 14 46 A 36 36 0 0 1 86 46"
-                    fill="none"
-                    stroke="#dde5da"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M 14 46 A 36 36 0 0 1 86 46"
-                    fill="none"
-                    stroke="var(--green)"
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={halfCircumference}
-                    strokeDashoffset={strokeDashoffset}
-                    className="gauge-progress"
-                  />
-                </svg>
-                <span className="digital-clock">{fmt(remaining)}</span>
-              </div>
-            );
-          })()}
-          {/* 終了後はタイマーの代わりに結果を表示する */}
+        {/* 真ん中：残り時間。終了後は結果 */}
+        <div className="b-hud__center">
+          {game && phase === 'playing' && (
+            <Timer time={fmt(remaining)} ratio={remaining / (game.timeLimit ?? DEFAULT_TIME_LIMIT_SEC)} danger={remaining < 30} />
+          )}
           {over && (
-            <div style={{ textAlign: 'center' }}>
-            <span className={`game-over-label ${remaining <= 0 ? 'time-up' : ''}`}>
-              {remaining <= 0 ? 'タイムアップ！' : found.length === total ? '全員発見！' : '終了'}
-            </span>
-            <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>
-              スコア：{totalScore}点
+            <div className="b-result-summary">
+              <span className={`b-result b-fill--${result.color}`} style={tiltStyle(-2)}>{result.text}</span>
+              <span className="b-result-score">スコア：{totalScore}点</span>
             </div>
-          </div>
           )}
         </div>
 
-        {/* 右側グループ：人型アイコン、カウント、各ボタン */}
-        <div className="toolbar-right">
+        {/* 右：クールタイム、残りの数、各ボタン */}
+        <div className="b-hud__group b-hud__group--end">
           {game && phase === 'playing' && (
             <>
               {cooldownRemaining > 0 && (
-                <span className="hud-cooldown" title="クールタイム中はクリックできません">
-                  <Icon name="hourglass" /> {Math.ceil(cooldownRemaining)}秒
+                <span className="b-cooldown" title="クールタイム中はクリックできません">
+                  <Icon name="hourglass" size={16} />{Math.ceil(cooldownRemaining)}秒
                 </span>
               )}
-              <div className="hud-person-group">
-                {Array.from({ length: total }).map((_, i) => {
-                  const isFound = i < found.length;
-                  return (
-                    <div key={i} className={`person-icon-wrapper ${isFound ? 'found' : ''}`}>
-                      <svg className="person-icon" viewBox="0 0 24 24" width="26" height="26">
-                        <circle cx="12" cy="7" r="4" fill="currentColor" />
-                        <path d="M12 12c-4.42 0-8 2.24-8 5v2h16v-2c0-2.76-3.58-5-8-5z" fill="currentColor" />
-                      </svg>
-                      {isFound && <span className="cross-mark">✕</span>}
-                    </div>
-                  );
-                })}
-              </div>
-              <span className="hud-count-inline">{found.length}/{total}</span>
+              <span className="b-found" role="img" aria-label={`${total}体中${found.length}体発見`}>
+                {Array.from({ length: total }, (_, i) => (
+                  <FigureIcon key={i} className={`b-found__icon${i < found.length ? ' is-found' : ''}`} />
+                ))}
+              </span>
+              <span className="b-count">{found.length}<small>/{total}</small></span>
+              <Tab pressed={showFound} color="accent" onClick={() => setShowFound((v) => !v)}>発見済みを表示</Tab>
+              <Tab tilt={2} onClick={() => setPhase('over')}>終了</Tab>
             </>
           )}
-
-          <div className="tool-group toolbar-buttons">
-            {over && <a className="button primary" href={`#/find?site=${siteId}&t=${Date.now()}`}>もう一度</a>}
-            {over && error && <><span className="error" role="alert">{error}</span><button onClick={() => setSaveAttempt((n) => n + 1)}>もう一度保存する</button></>}
-            {phase === 'playing' && (
-              <button onClick={() => setShowFound((v) => !v)}>
-                {showFound ? '発見済みを隠す' : '発見済みを表示'}
-              </button>
-            )}
-            {phase === 'playing' && <button onClick={() => setPhase('over')}>終了</button>}
-          </div>
+          {over && error && (
+            <>
+              <span className="b-hud__error" role="alert">{error}</span>
+              <Tab onClick={() => setSaveAttempt((n) => n + 1)}>もう一度保存する</Tab>
+            </>
+          )}
+          {over && <Sticker as="a" href={`#/find?site=${siteId}&t=${Date.now()}`} size="s" color="find" tilt={2}>もう一度</Sticker>}
         </div>
       </header>
 
@@ -473,56 +430,54 @@ export default function Find({ siteId }) {
         })}
         {misses.map((m) => (
           <span key={m.id} className={`miss-mark ${m.decoy ? 'decoy' : ''}`} style={{ left: m.x, top: m.y }}>
-            {m.decoy ? `デコイ！ -${DECOY_PENALTY_SEC}秒` : '×'}
+            {m.decoy ? `デコイ！ −${DECOY_PENALTY_SEC}秒` : '×'}
           </span>
         ))}
       </SiteStage>
 
-      {(phase === 'intro' || phase === 'starting' || phase === 'empty') && (
-        <div className="modal-backdrop">
-          <div className="modal">
-            {phase === 'empty' ? (
-              <>
-                <h2>まだ誰も隠れていません</h2>
-                <p>まずは隠れるモードで隠れてみましょう。</p>
-                <div className="modal-actions">
-                  <a className="button primary" href={`#/hide?site=${siteId}`}>隠れる</a>
-                  <a className="button" href="#/">ホームへ</a>
-                </div>
-              </>
-            ) : (
-              <>
-                <h2>カメレオンを探せ！</h2>
-                <p>
-                  このページのどこかに最大5人のカメレオンが潜んでいます。
-                  <br />
-                  制限時間は <strong>3分</strong>。見つけたらクリック！
-                  <br />
-                  ただし<strong>デコイ</strong>（ニセモノ）をクリックすると {DECOY_PENALTY_SEC}秒減ります。
-                </p>
-                <div className="input-group" style={{ margin: '16px 0' }}>
-                <input
-                  type="text"
-                  placeholder="ハンターの名前"
-                  maxLength={20}
-                  value={playerName}
-                  onChange={(e) => setPlayerName(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)' }}
-                />
-                </div>
-                {error && <p className="error">{error}</p>}
-                <div className="modal-actions">
-                  <button className="primary" disabled={!stageReady || phase === 'starting'} onClick={start}>
-                    {!stageReady ? 'ページ読み込み中…' : phase === 'starting' ? '準備中…' : 'スタート'}
-                  </button>
-                </div>
-              </>
-            )}
+      {phase === 'empty' && (
+        <Modal tapes={['hide', null]} aria-labelledby="find-empty-title">
+          <h2 id="find-empty-title" className="b-modal__title">まだ誰も隠れていません</h2>
+          <p>まずは隠すモードで隠れてみましょう。</p>
+          <div className="b-modal__actions">
+            <Sticker as="a" href="#/" tilt={2}>ホームへ</Sticker>
+            <Sticker as="a" href={`#/hide?site=${siteId}`} color="hide" tilt={-2}>隠れる</Sticker>
           </div>
-        </div>
+        </Modal>
       )}
-
-
+      {(phase === 'intro' || phase === 'starting') && (
+        <Modal tapes={['accent', 'find']} aria-labelledby="find-intro-title">
+          <h2 id="find-intro-title" className="b-modal__title">カメレオンを探せ！</h2>
+          <p>
+            このページのどこかに、最大5体のカメレオンが潜んでいます。<br />
+            見つけたらクリック！<br />
+            照準を近づけると、カメレオンにうっすら影がつきます。
+          </p>
+          <div className="b-stats">
+            <div className="b-fill--find" style={tiltStyle(-2)}><strong>最大5体</strong><span>潜んでいる</span></div>
+            <div className="b-fill--accent" style={tiltStyle(1.5)}><strong>{fmt(DEFAULT_TIME_LIMIT_SEC)}</strong><span>制限時間</span></div>
+            <div className="b-fill--hide" style={tiltStyle(-1)}><strong>−{DECOY_PENALTY_SEC}秒</strong><span>デコイを押すと</span></div>
+          </div>
+          <p className="b-modal__note">クリックするたびに{CLICK_COOLDOWN_MS / 1000}秒間はクリックできません（当たり・外れ・デコイのどれでも）</p>
+          <label className="b-player-name">
+            ハンターの名前
+            <input
+              className="b-input"
+              type="text"
+              placeholder="ハンターの名前"
+              maxLength={20}
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+            />
+          </label>
+          {error && <p className="b-alert" role="alert">{error}</p>}
+          <div className="b-modal__actions">
+            <Sticker color="find" tilt={-2} disabled={!stageReady || phase === 'starting'} onClick={start}>
+              {!stageReady ? 'ページ読み込み中…' : phase === 'starting' ? '準備中…' : 'スタート'}
+            </Sticker>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
