@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import SiteStage from '../components/SiteStage.jsx';
 import Icon from '../components/Icon.jsx';
 import { api } from '../api.js';
-import { getMyIds } from '../myChameleons.js';
 
 const ZOOMS = [1, 1.5, 2, 3];
 const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
@@ -141,7 +140,7 @@ export default function Find({ siteId }) {
       const finalPlayerName = playerName.trim() || 'ななしのハンター';
       activePlayerNameRef.current = finalPlayerName;
 
-      const g = await api.startGame(siteId, getMyIds());
+      const g = await api.startGame(siteId, []);
       if (g.chameleons.length === 0) {
         setPhase('empty');
         return;
@@ -485,7 +484,7 @@ export default function Find({ siteId }) {
             {phase === 'empty' ? (
               <>
                 <h2>まだ誰も隠れていません</h2>
-                <p>（自分が隠したカメレオンは出題されません）<br />まずは隠れるモードで隠れてみましょう。</p>
+                <p>まずは隠れるモードで隠れてみましょう。</p>
                 <div className="modal-actions">
                   <a className="button primary" href={`#/hide?site=${siteId}`}>隠れる</a>
                   <a className="button" href="#/">ホームへ</a>
