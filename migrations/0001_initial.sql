@@ -1,0 +1,27 @@
+CREATE TABLE IF NOT EXISTS chameleons (
+  id TEXT PRIMARY KEY,
+  site TEXT NOT NULL,
+  name TEXT NOT NULL,
+  x REAL NOT NULL,
+  y REAL NOT NULL,
+  w INTEGER NOT NULL,
+  h INTEGER NOT NULL,
+  image TEXT NOT NULL,
+  decoys TEXT NOT NULL DEFAULT '[]',
+  searched INTEGER NOT NULL DEFAULT 0,
+  found INTEGER NOT NULL DEFAULT 0,
+  total_hide_score REAL NOT NULL DEFAULT 0,
+  view_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS games (
+  id TEXT PRIMARY KEY,
+  site TEXT NOT NULL,
+  chameleon_ids TEXT NOT NULL,
+  found_ids TEXT NOT NULL DEFAULT '[]',
+  player_name TEXT NOT NULL DEFAULT 'ななしのハンター',
+  score INTEGER NOT NULL DEFAULT 0,
+  finished INTEGER NOT NULL DEFAULT 0,
+  started_at TEXT NOT NULL
+);

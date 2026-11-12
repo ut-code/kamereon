@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "chameleon",
+  "account_id": "df6c3acd32f66bd1eb95e50607684297",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kamereon-db",
+      "database_id": "d20b034a-bf2c-4166-947f-c0ecfa5648c5",
+      "migrations_dir": "migrations"
+    }
+  ]
+}
