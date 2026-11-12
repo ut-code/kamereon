@@ -15,37 +15,39 @@
             font-family: "Shippori Mincho", "Zen Old Mincho", serif; 
         }
 
-        /* 1. 画面下のフローティング・ナビ（超モダンな浮遊メニュー） */
-        .floating-nav {
-            position: fixed;
-            bottom: 30px;
+       /* 追従しない、おしゃれなトップメニュー */
+        .glass-nav {
+            position: absolute; /* fixed（追従）をやめ、最初の画面に固定 */
+            top: 30px; /* 画面の一番上の方に配置 */
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            align-items: center;
-            gap: 30px;
-            background: rgba(10, 17, 24, 0.65);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            padding: 12px 30px;
+            justify-content: center;
+            gap: 40px; /* メニューの文字の間隔 */
+            z-index: 100;
+
+            /* すりガラス風の美しいカプセル型デザイン */
+            background: rgba(10, 17, 24, 0.3);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 50px;
-            border: 1px solid rgba(186, 230, 253, 0.2);
-            z-index: 1000;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            padding: 15px 40px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
         }
-        .nav-logo {
-            font-family: "Times New Roman", Times, serif;
-            font-style: italic;
-            color: #bae6fd;
+
+        .glass-nav a {
+            color: #e2e8f0;
+            text-decoration: none;
             font-size: 13px;
-            letter-spacing: 2px;
-            border-right: 1px solid rgba(255,255,255,0.2);
-            padding-right: 20px;
+            letter-spacing: 3px;
+            font-family: 'Cinzel', serif; /* 繊細なフォント */
+            transition: color 0.3s ease;
         }
-        .nav-links { display: flex; gap: 25px; }
-        .nav-links a { color: #ccc; text-decoration: none; font-size: 11px; letter-spacing: 2px; transition: 0.3s; }
-        .nav-links a:hover { color: #fff; }
-        .ticket-text { color: #38bdf8 !important; font-weight: bold; }
+
+        .glass-nav a:hover {
+            color: #bae6fd; /* マウスを乗せると青白く光る */
+        }
 
         /* 2. 丸みを帯びたガラス風のラベル */
         .art-label { 
@@ -123,7 +125,7 @@
             width: 80%;
             max-width: 600px; /* ABOUT USより少しこぢんまりと */
             text-align: center;
-            background: rgba(10, 17, 24, 0.5); /* ほんの少し暗めにして文字を読みやすく */
+            background: rgba(10, 17, 24, 0.2); /* ほんの少し暗めにして文字を読みやすく */
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.15);
@@ -146,7 +148,19 @@
             color: #e2e8f0;
             margin: 0;
             letter-spacing: 2px;
-            text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+            text-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+        /* 画像の上に半透明の黒を重ねるクラス */
+        .dark-cover::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); /* ★0.6の部分で黒の濃さを調整（0〜1） */
+            pointer-events: none;
+            z-index: 2; /* 画像より上で、パネル(z-index:10)より下 */
         }
 /* -----------------------------------
            レイアウト用の基本設定（段組みを正す）
@@ -181,14 +195,27 @@
             position: relative;
             overflow: hidden;
         }
+        .art-half .real-img,
+        .art-third .real-img {
+            /* HTMLに書かれた高さを無視して、画面の70%の高さに強制拡大 */
+            height: 630px !important;
+        }
 
+        /* ② 1枚ドーンと置かれている写真（※概要パネルがある部分は除外する） */
+        .art-section-full:not(:has(.glass-panel)) .real-img {
+            /* HTMLに書かれた高さを無視して、画面の80%の高さに強制拡大 */
+            height: 960px !important;
+        }
+        .art-section-full:has(.glass-panel) {
+            margin-top: 15px;
+        }
         /* 実際の画像用のスタイル（上書き） */
         .real-img {
             width: 100%;
             height: 100%; /* HTMLで指定した高さに合わせる */
             object-fit: cover; /* 歪ませずに枠を埋め尽くす */
             display: block;
-            border: 2px solid rgba(212, 175, 55, 0.4); /* 半透明のくすんだ金色 */
+            border: 3px solid rgba(15, 30, 57, 0.74); /* 半透明のくすんだ金色 */
             box-sizing: border-box;
         }
 
@@ -235,6 +262,7 @@
             background-color: #020617; 
             text-shadow: 0 2px 5px rgba(0,0,0,0.9); 
             border-top: 1px solid rgba(255,255,255,0.1);
+             margin: 15px 0;
         }
         .footer-column h3 { color: #fff; margin-top: 0; margin-bottom: 25px; font-size: 14px; letter-spacing: 3px; }
         .footer-column p, .footer-column ul { line-height: 2; margin: 0; padding: 0; list-style: none; }
@@ -242,22 +270,19 @@
   </head>
 <body>
 
-   <!-- 新しいナビゲーション（画面下部に浮遊します） -->
-    <nav class="floating-nav">
-        <span class="nav-logo">AQUA BIBLIOTHECA</span>
-        <div class="nav-links">
-            <a href="javascript:void(0)">ARCHITECT</a>
-            <a href="javascript:void(0)">COLLECTION</a>
-            <a href="javascript:void(0)" class="ticket-text">KOMABA FESTIVAL</a>
-        </div>
-    </nav>
-
 <!-- SECTION 1: 建築・空間紹介 -->
-    <div class="art-section-full" style="height: 100vh;">
+    <div class="art-section-full" style="height: 900px;">
         <!-- 背景になる外観画像 -->
-        <img src="images/bg/exploreimages/library-morning.webp" class="real-img" style="height: 100vh;" alt="水上に佇む図書館の全景">
+        <img src="images/bg/exploreimages/library-morning.webp" class="real-img" style="height: 900px;" alt="水上に佇む図書館の全景">
         
-        <!-- メインタイトル（上の方に配置） -->
+<nav class="glass-nav">
+            <a href="#about">ABOUT</a>
+            <a href="#facilities">FACILITY</a>
+            <a href="#collections">COLLECTION</a>
+            <a href="#festival">KOMABA FESTIVAL</a>
+        </nav>
+
+        <!--pre メインタイトル（上の方に配置） -->
         <div class="hero-title" style="top: 25%;">AQUA BIBLIOTHECA</div>
         
         <!-- ABOUT USのすりガラスパネル（下の方に配置） -->
@@ -298,7 +323,7 @@
         <!-- 3列目：広いとこ -->
         <div class="art-third">
             <img src="images/bg/exploreimages/library-hiroi.webp" class="real-img" style="height: 350px;" alt="広いとこ">
-            <div class="art-label" style="bottom: 8%; left: 5%;">大広間（広いとこ）</div>
+            <div class="art-label" style="bottom: 8%; left: 5%;">深層書庫</div>
         </div>
     </div>
 
@@ -311,8 +336,8 @@
 <!-- SECTION 2: 所蔵本コレクション -->
 
     <!-- ＝＝＝ 第1章：天文学 ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="天文学の背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/astronomy-enban.webp" class="real-img" style="height: 540px;" alt="天文学の背景">
         <div class="glass-panel">
             <h3>第一の書：天文学手稿 - 忘れ去られた星々の記録 -</h3>
             <p>
@@ -323,75 +348,74 @@
         </div>
     </div>
     <div class="art-section-full">
-        <img src="画像URLをここに入力" class="real-img" style="height: 500px;" alt="羊皮紙の見開き">
+        <img src="images/bg/exploreimages/astoronomy-heya.webp" class="real-img" style="height: 500px;" alt="遺跡">
         <div class="art-label" style="bottom: 10%; left: 5%;">『天文学手稿』 Folio 1</div>
     </div>
     <div class="art-section-row">
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="天球儀">
+            <img src="images/bg/exploreimages/astronomy-tikyuugi.webp" class="real-img" style="height: 400px;" alt="天球儀">
             <div class="art-label" style="bottom: 8%; left: 5%;">『天文学手稿』 Folio 12</div>
         </div>
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="二重月">
+            <img src="images/bg/exploreimages/astoronomy-bookzenmen.webp" class="real-img" style="height: 400px;" alt="羊皮紙の見開き">
             <div class="art-label" style="bottom: 8%; left: 5%;">『天文学手稿』 Folio 28</div>
         </div>
     </div>
 
     <!-- ＝＝＝ 第2章：スチームパンク ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="スチームパンクの背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/steam-window.webp" class="real-img" style="height: 540px;" alt="スチームパンクの背景">
         <div class="glass-panel">
-            <h3>第二の書：からくり仕掛けの蒸気都市手稿</h3>
+            <h3>第二の書：飛空艇機関士手帖</h3>
             <p>
                 空を覆う煙突と、精巧な歯車で駆動する鉄の街。<br>
-                人間と自動人形（オートマトン）が共存した、<br>
-                もう一つの産業革命の記憶。
+                飛空艇機関士によるもう一つの産業革命の記憶。
             </p>
         </div>
     </div>
     <div class="art-section-row">
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 450px;" alt="歯車の蒸気都市">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『からくり都市手稿』 Folio 4</div>
+            <img src="images/bg/exploreimages/steam-town.webp" class="real-img" style="height: 450px;" alt="歯車の蒸気都市">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『飛空艇機関士手帖』 Folio 4</div>
         </div>
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 450px;" alt="真鍮の自動人形">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『からくり都市手稿』 Folio 15</div>
+            <img src="images/bg/exploreimages/steam-frasco.webp" class="real-img" style="height: 450px;" alt="実験作業台">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『飛空艇機関士手帖』 Folio 15</div>
         </div>
     </div>
     <div class="art-section-full">
-        <img src="画像URLをここに入力" class="real-img" style="height: 450px;" alt="巨大飛行船">
-        <div class="art-label" style="bottom: 10%; right: 5%;">『からくり都市手稿』 Folio 32</div>
+        <img src="images/bg/exploreimages/steam-hikousen.webp" class="real-img" style="height: 450px;" alt="巨大飛行船">
+        <div class="art-label" style="bottom: 10%; right: 5%;">『飛空艇機関士手帖』 Folio 32</div>
     </div>
 
     <!-- ＝＝＝ 第3章：電脳世界 ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="電脳世界の背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/data-1.webp" class="real-img" style="height: 540px;" alt="電脳世界の背景">
         <div class="glass-panel">
-            <h3>第三の書：基盤領域の記録 - 電脳世界 -</h3>
+            <h3>第三の書：基盤領域の記録</h3>
             <p>
                 果てしなく続くネオンと回路の都市。<br>
                 データ領域の深淵にアクセスした者が残した、<br>
-                冷たくも美しい論理空間の断片。
+                冷たく美しい論理空間の断片。
             </p>
         </div>
     </div>
     <div class="art-section-row">
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="回路都市">
+            <img src="images/bg/exploreimages/data-2.webp" class="real-img" style="height: 400px;" alt="回路都市">
             <div class="art-label" style="bottom: 8%; left: 5%;">『基盤領域の記録』 Sector 01</div>
         </div>
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="ワイヤーフレーム">
+            <img src="images/bg/exploreimages/data-3.webp" class="real-img" style="height: 400px;" alt="ワイヤーフレーム">
             <div class="art-label" style="bottom: 8%; left: 5%;">『基盤領域の記録』 Sector 09</div>
         </div>
     </div>
 
     <!-- ＝＝＝ 第4章：星の王子さま ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="星の王子さまの背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/littleprince-theplanet.webp" class="real-img" style="height: 540px;" alt="星の王子さまの背景">
         <div class="glass-panel">
-            <h3>第四の書：小惑星B612の手記</h3>
+            <h3>第四の書：星の王子様</h3>
             <p>
                 バオバブの木と、たった一輪の気位の高いバラ。<br>
                 星から星へと旅をした小さな王子の、<br>
@@ -400,48 +424,56 @@
         </div>
     </div>
     <div class="art-section-row">
-        <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 450px;" alt="バラの咲く星">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『小惑星B612の手記』 p.07</div>
+        <div class="art-third">
+            <img src="images/bg/exploreimages/littleprince-fox.webp" class="real-img" style="height: 450px;" alt="狐">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『星の王子様』 p.42</div>
         </div>
-        <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 450px;" alt="砂漠の夜空">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『小惑星B612の手記』 p.42</div>
+        <div class="art-third">
+            <img src="images/bg/exploreimages/littleprince-rose.webp" class="real-img" style="height: 450px;" alt="バラ">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『星の王子様』 p.07</div>
+        </div>
+        <div class="art-third">
+            <img src="images/bg/exploreimages/littleprince-airplane.webp" class="real-img" style="height: 450px;" alt="飛行士とヘビ">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『星の王子様』 p.85</div>
         </div>
     </div>
+    <div class="art-section-full">
+        <img src="images/bg/exploreimages/littleprince-prince.webp" class="real-img" style="height: 550px;" alt="星空と王子">
+        <div class="art-label" style="bottom: 10%; left: 5%;">『星の王子様』</div>
+    </div>
 
-    <!-- ＝＝＝ 第5章：千と千尋風（湯屋街） ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="湯屋街の背景">
+    <!-- ＝＝＝ 第5章：湯屋街 ＝＝＝ -->
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/onsen-gaikan.webp" class="real-img" style="height: 540px;" alt="湯屋街の背景">
         <div class="glass-panel">
-            <h3>第五の書：八百万の神々が佇む湯屋街</h3>
+            <h3>第五の書：八百万湯屋絵巻</h3>
             <p>
                 朱塗りの橋の向こう、立ち上る湯気と提灯の灯り。<br>
                 夜になると名もなき神々が集う、<br>
-                現実とあわいの世界にある巨大温泉街の情景。
+                現実とあわいの世界にある温泉街の情景。
             </p>
         </div>
     </div>
     <div class="art-section-full">
-        <img src="画像URLをここに入力" class="real-img" style="height: 550px;" alt="温泉旅館全景">
+        <img src="images/bg/exploreimages/onsen-roji.webp" class="real-img" style="height: 550px;" alt="温泉旅館全景">
         <div class="art-label" style="bottom: 10%; left: 5%;">『八百万湯屋絵巻』 巻の壱</div>
     </div>
     <div class="art-section-row">
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="提灯の路地">
+            <img src="images/bg/exploreimages/onsen-ryokan.webp" class="real-img" style="height: 400px;" alt="提灯の路地">
             <div class="art-label" style="bottom: 8%; left: 5%;">『八百万湯屋絵巻』 巻の二</div>
         </div>
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="水面の影">
+            <img src="images/bg/exploreimages/onsen-hansya.webp" class="real-img" style="height: 400px;" alt="水面の影">
             <div class="art-label" style="bottom: 8%; left: 5%;">『八百万湯屋絵巻』 巻の三</div>
         </div>
     </div>
 
     <!-- ＝＝＝ 第6章：古代都市遺跡 ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="古代遺跡の背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/iseki-gaikan.webp" class="real-img" style="height: 540px;" alt="古代遺跡の背景">
         <div class="glass-panel">
-            <h3>第六の書：風化せし巨石文明の遺構</h3>
+            <h3>第六の書：巨石文明遺構</h3>
             <p>
                 密林の奥深くに眠る、苔に覆われた石の神殿。<br>
                 文字の持たない文明が遺した精巧な日時計と、<br>
@@ -451,22 +483,22 @@
     </div>
     <div class="art-section-row">
         <div class="art-third">
-            <img src="画像URLをここに入力" class="real-img" style="height: 380px;" alt="巨大神殿">
+            <img src="images/bg/exploreimages/iseki-rashinban.webp" class="real-img" style="height: 380px;" alt="日時計">
             <div class="art-label" style="bottom: 8%; left: 5%;">『巨石文明遺構』 I</div>
         </div>
         <div class="art-third">
-            <img src="画像URLをここに入力" class="real-img" style="height: 380px;" alt="日時計">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『巨石文明遺構』 II</div>
+            <img src="images/bg/exploreimages/iseki-kao.webp" class="real-img" style="height: 380px;" alt="レリーフ">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『巨石文明遺構』 III</div>
         </div>
         <div class="art-third">
-            <img src="画像URLをここに入力" class="real-img" style="height: 380px;" alt="レリーフ">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『巨石文明遺構』 III</div>
+            <img src="images/bg/exploreimages/iseki-suisyo.webp" class="real-img" style="height: 380px;" alt="水晶の道">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『巨石文明遺構』 II</div>
         </div>
     </div>
 
     <!-- ＝＝＝ 第7章：レシピ本 ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="レシピ本の背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/ryouri-heya.webp" class="real-img" style="height: 540px;" alt="レシピ本の背景">
         <div class="glass-panel">
             <h3>第七の書：水上図書館の秘伝調理譜</h3>
             <p>
@@ -478,20 +510,21 @@
     </div>
     <div class="art-section-row">
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="発光スープ">
+            <img src="images/bg/exploreimages/ryouri-soup.webp" class="real-img" style="height: 400px;" alt="発光スープ">
             <div class="art-label" style="bottom: 8%; left: 5%;">『秘伝調理譜』 Recipe 03</div>
         </div>
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="星の結晶の菓子">
+            <img src="images/bg/exploreimages/ryouri-pudding.webp" class="real-img" style="height: 400px;" alt="星の結晶の菓子">
             <div class="art-label" style="bottom: 8%; left: 5%;">『秘伝調理譜』 Recipe 14</div>
         </div>
     </div>
 
     <!-- ＝＝＝ 第8章：東大写真枠 ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="東大の背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/toudai-ityou1.webp" class="real-img" style="height: 540px;" alt="東大の背景">
+
         <div class="glass-panel">
-            <h3>第八の書：異界としての東京大学</h3>
+            <h3>第八の書：東京大学</h3>
             <p>
                 数多の幻想書に紛れ込んだ、唯一の「現実の記録」。<br>
                 重厚なゴシック建築と黄金色のイチョウが織りなす風景は、<br>
@@ -500,22 +533,22 @@
         </div>
     </div>
     <div class="art-section-full">
-        <img src="画像URLをここに入力" class="real-img" style="height: 500px;" alt="ゴシック様式校舎">
-        <div class="art-label" style="bottom: 10%; left: 5%;">『異界：東京大学』 - 1号館・本館</div>
+        <img src="images/bg/exploreimages/toudai-itigoukan2.webp" class="real-img" style="height: 500px;" alt="ゴシック様式校舎">
+        <div class="art-label" style="bottom: 10%; left: 5%;">『東京大学』 - 1号館</div>
     </div>
     <div class="art-section-row">
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="講義室">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『異界：東京大学』 - 講義回廊</div>
+            <img src="images/bg/exploreimages/toudai-tatekan.webp" class="real-img" style="height: 400px;" alt="銀杏並木と立て看">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『東京大学』 - 銀杏並木と立て看</div>
         </div>
         <div class="art-half">
-            <img src="画像URLをここに入力" class="real-img" style="height: 400px;" alt="銀杏並木">
-            <div class="art-label" style="bottom: 8%; left: 5%;">『異界：東京大学』 - 駒場キャンパス</div>
+            <img src="images/bg/exploreimages/toudai-sakura.webp" class="real-img" style="height: 400px;" alt="桜">
+            <div class="art-label" style="bottom: 8%; left: 5%;">『東京大学』 - サクラサク</div>
         </div>
     </div>
     <!-- ＝＝＝ 終章：水上図書館（フィナーレ） ＝＝＝ -->
-    <div class="art-section-full" style="height: 60vh;">
-        <img src="画像URLをここに入力" class="real-img" style="height: 60vh;" alt="水上図書館の背景">
+    <div class="art-section-full dark-cover" style="height: 540px;">
+        <img src="images/bg/exploreimages/library-kairou.webp" class="real-img" style="height: 540px;" alt="水上図書館の背景">
         <div class="glass-panel">
             <h3>終章：水鏡文庫 - AQUA BIBLIOTHECA -</h3>
             <p>
@@ -538,14 +571,12 @@
     <!-- =========================================
          【フッター】
          ========================================= -->
-    <footer class="site-footer" style="background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('images/kamereon-glass.webp');background-position: top center;">
+    <footer class="site-footer" style="background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('images/kamereon-stainedglass.webp');background-position: top center;">
         <div class="footer-column">
-            <h3>UPCOMING EXHIBITIONS</h3>
-            <ul>
-                <li>2026.11 - 「見えないカメレオン展」</li>
-                <li>2026.12 - 「名画に潜む動物たち」</li>
-                <li>2027.01 - 「息をひそめる名画たち」</li>
-            </ul>
+            <h3>Library Calendar</h3>
+            <p>
+               Closed all month: <br>No Full Moon This Month
+            </p>
         </div>
         <div class="footer-column" style="text-align: right;">
             <h3>ABOUT US</h3>

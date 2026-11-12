@@ -16,7 +16,7 @@ export const api = {
   getChameleonsByIds: (ids) => request('GET', `/api/chameleons?ids=${ids.map(encodeURIComponent).join(',')}`),
   createChameleon: (data) => request('POST', '/api/chameleons', data),
   startGame: (site, exclude) => request('POST', '/api/games', { site, count: 5, exclude }),
-  reportFound: (gameId, chameleonId, score) => request('POST', `/api/games/${gameId}/found`, { chameleonId, score }),
+  reportFound: (gameId, chameleonId, score, playerName) => request('POST', `/api/games/${gameId}/found`, { chameleonId, score, playerName }),
   reportHideScores: (gameId, hideScores) => request('POST', `/api/games/${gameId}/finish-hide-scores`, { hideScores }),
   getFinderRanking: () => request('GET', '/api/rankings/finder'),
   getHiderRanking: () => request('GET', '/api/rankings/hider'),
