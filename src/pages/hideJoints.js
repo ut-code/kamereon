@@ -438,8 +438,8 @@ function surfaceLighting(surface, alpha, width, height, softness) {
       // 光源は画面の左上。回転させても明るい側は光源に向く。
       const diffuse = Math.max(0, (-0.432 * dx - 0.576 * dy + 0.694) / length);
       const specular = Math.max(0, (-0.235 * dx - 0.313 * dy + 0.920) / length);
-      shade[i] = 0.64 + 0.36 * diffuse;
-      shine[i] = 0.20 * specular ** 24;
+      shade[i] = 0.84 + 0.16 * diffuse;
+      shine[i] = 0.15 * specular ** 24;
     }
   }
   return { shade, shine };
@@ -558,6 +558,9 @@ export class JointPainter extends Painter {
   }
 
   render() {
+
+    /*return super.render();*/
+
     if (!this.lighting) return super.render();
     const { shade, shine } = this.lighting;
     const pixels = this.image.data;
@@ -569,6 +572,7 @@ export class JointPainter extends Painter {
       pixels[i * 4 + 3] = this.alpha[i];
     }
     this.ctx.putImageData(this.image, 0, 0);
+
   }
 
   beginStroke(x, y, { splash = false, ...options }) {

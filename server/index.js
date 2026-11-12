@@ -121,7 +121,7 @@ app.post('/api/games', (req, res) => {
 app.post('/api/games/:gameId/found', (req, res) => {
   const game = db.prepare('SELECT * FROM games WHERE id = ?').get(req.params.gameId);
   if (!game) return res.status(404).json({ error: 'game not found' });
-  const { chameleonId, score = 0 } = req.body ?? {};
+  const { chameleonId, score = 0, playerName } = req.body ?? {};
   const ids = JSON.parse(game.chameleon_ids);
   const found = JSON.parse(game.found_ids);
   if (!ids.includes(chameleonId)) return res.status(400).json({ error: 'not in this game' });
@@ -132,7 +132,8 @@ app.post('/api/games/:gameId/found', (req, res) => {
 
   found.push(chameleonId);
   const newScore = Math.round((game.score || 0) + score);
-  db.prepare('UPDATE games SET found_ids = ?, score = ? WHERE id = ?').run(JSON.stringify(found), newScore, game.id);
+  const cleanPlayerName = String(playerName ?? '').trim().slice(0, 20) || game.player_name || 'ななしのハンター';
+  db.prepare('UPDATE games SET found_ids = ?, score = ?, player_name = ? WHERE id = ?').run(JSON.stringify(found), newScore,  cleanPlayerName, game.id);
   db.prepare('UPDATE chameleons SET found = found + 1 WHERE id = ?').run(chameleonId);
   res.json({ ok: true });
 });

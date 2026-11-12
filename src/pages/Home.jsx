@@ -304,7 +304,7 @@ export default function Home({ siteId = 'utcode' }) {
         })));
         setFinderRanking(finderData.map((g) => ({
           id: g.id,
-          name: g.player_name,
+          name: g.playerName || g.player_name,
           score: g.score,
           found: g.score,
         })));

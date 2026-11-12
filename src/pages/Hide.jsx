@@ -8,7 +8,6 @@ import {
   toFigurePoint, fromFigurePoint,
 } from "./hideJoints.js";
 import { api } from "../api.js";
-import { addMyId } from "../myChameleons.js";
 import { Check, FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from "../components/ui.jsx";
 import "./Hide.css";
 
@@ -1112,7 +1111,6 @@ export default function Hide({ siteId }) {
         ...toData(main),
         decoys: figs.filter((f) => f.decoy).map(toData),
       });
-      addMyId(id);
       setSavedAt(submittedAt);
       setSavedId(id);
     } catch (err) {
