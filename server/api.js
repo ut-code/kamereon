@@ -126,13 +126,15 @@ export function createApi(db) {
   api.post('/games/:gameId/found', route(async (req, res) => {
     const game = await db.prepare('SELECT * FROM games WHERE id = ?').bind(req.params.gameId).first();
     if (!game) return res.status(404).json({ error: 'game not found' });
-    const { chameleonId, score = 0 } = req.body ?? {};
+    const { chameleonId, score = 0, playerName } = req.body ?? {};
     if (!JSON.parse(game.chameleon_ids).includes(chameleonId)) {
       return res.status(400).json({ error: 'not in this game' });
     }
     if (!validScore(score)) return res.status(400).json({ error: 'invalid score' });
     const elapsed = (Date.now() - Date.parse(game.started_at)) / 1000;
     if (elapsed > TIME_LIMIT_SEC + 10) return res.status(409).json({ error: 'time over' });
+    const cleanPlayerName = String(playerName ?? '').trim().slice(0, 20)
+      || game.player_name || 'ななしのハンター';
 
     // 判定も更新と同じトランザクションで行い、同時報告と再送の二重計上を防ぐ。
     const results = await db.batch([
@@ -144,11 +146,11 @@ export function createApi(db) {
         )
       `).bind(chameleonId, game.id, chameleonId),
       db.prepare(`
-        UPDATE games SET found_ids = json_insert(found_ids, '$[#]', ?), score = score + ?
+        UPDATE games SET found_ids = json_insert(found_ids, '$[#]', ?), score = score + ?, player_name = ?
         WHERE id = ? AND NOT EXISTS (
           SELECT 1 FROM json_each(games.found_ids) WHERE value = ?
         )
-      `).bind(chameleonId, Math.round(score), game.id, chameleonId),
+      `).bind(chameleonId, Math.round(score), cleanPlayerName, game.id, chameleonId),
     ]);
     if (results[1].meta.changes === 0) return res.json({ ok: true, alreadyFound: true });
     res.json({ ok: true });

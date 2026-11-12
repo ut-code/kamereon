@@ -7,7 +7,7 @@ export const SITES = {
     width: 1280,
   },
   
-  exhibit: {
+ /* exhibit: {
     title: '展覧会 ホームページ',
     url: '#',
     file: 'exhibit.html',
@@ -19,7 +19,7 @@ export const SITES = {
     url: '#',
     file: 'explore.html',
     width: 1280,
-  },
+  },*/
   museum: {
     title: '古今東西美術館 ホームページ',
     url: '#',
