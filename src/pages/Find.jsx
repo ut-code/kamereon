@@ -56,8 +56,11 @@ function FlashlightShadow({ obj, aim, radius }) {
   const len = SHADOW_MIN_OFFSET + Math.min(dist * SHADOW_DIST_RATIO, SHADOW_MAX_EXTRA);
   const dx = ux * len;
   const dy = uy * len;
+  const whitedx = dx * 1.5;
+  const whitedy = dy * 1.5;
 
   return (
+    <>
     <img
       className="flashlight-shadow"
       src={obj.image}
@@ -70,6 +73,20 @@ function FlashlightShadow({ obj, aim, radius }) {
         clipPath: `circle(${radius}px at ${aim.x - obj.x - dx}px ${aim.y - obj.y - dy}px)`,
       }}
     />
+    <img
+      className="flashlight-shadow"
+      src={obj.image}
+      alt=""
+      draggable={false}
+      style={{
+        left: whitedx,
+        top: whitedy,
+        // clip-path は影要素自身の座標系なので、照準の中心を影要素基準に直す
+        clipPath: `circle(${radius}px at ${aim.x - obj.x - whitedx}px ${aim.y - obj.y - whitedy}px)`,
+        filter: 'brightness(0) invert(1) drop-shadow(0px 0px 4px rgba(255, 255, 255, 0.8)) brightness(2) opacity(0.9)'
+      }}
+    />
+    </>
   );
 }
 
@@ -98,6 +115,9 @@ export default function Find({ siteId }) {
   const [aim, setAim] = useState(null); // 照準の中心（ページ座標）。ステージ外なら null
   const pointerRef = useRef(null); // 最後のマウス位置（クライアント座標）
   const aimFrameRef = useRef(null);
+  const [playerName, setPlayerName] = useState('');
+  const [totalScore, setTotalScore] = useState(0);
+  const activePlayerNameRef = useRef('ななしのハンター');
 
   // マウス移動・スクロールのたびに照準位置を更新する（1フレームに1回まで）
   const scheduleAim = () => {
@@ -115,7 +135,11 @@ export default function Find({ siteId }) {
   const start = async () => {
     setPhase('starting');
     setError('');
+    setTotalScore(0);
     try {
+      const finalPlayerName = playerName.trim() || 'ななしのハンター';
+      activePlayerNameRef.current = finalPlayerName;
+
       const g = await api.startGame(siteId, getMyIds());
       if (g.chameleons.length === 0) {
         setPhase('empty');
@@ -208,7 +232,8 @@ export default function Find({ siteId }) {
         hState.isFound = true;
       }
       const finderScore = Math.round(100 + 20 * Math.max(0, (deadline - Date.now()) / 1000) / game.timeLimit);
-      api.reportFound(game.gameId, hit.id, finderScore).catch(() => {});
+      setTotalScore((prev) => prev + finderScore);
+      api.reportFound(game.gameId, hit.id, finderScore, activePlayerNameRef.current ).catch(() => {});
       setAnimatingFound((af) => [...af, hit.id]);
       setTimeout(() => {
         setAnimatingFound((a) => a.filter((id) => id !== hit.id));
@@ -340,9 +365,14 @@ export default function Find({ siteId }) {
           })()}
           {/* 終了後はタイマーの代わりに結果を表示する */}
           {over && (
+            <div style={{ textAlign: 'center' }}>
             <span className={`game-over-label ${remaining <= 0 ? 'time-up' : ''}`}>
               {remaining <= 0 ? 'タイムアップ！' : found.length === total ? '全員発見！' : '終了'}
             </span>
+            <div style={{ fontSize: '13px', color: 'var(--ink)', marginTop: '2px' }}>
+              スコア：{totalScore}点
+            </div>
+          </div>
           )}
         </div>
 
@@ -470,6 +500,16 @@ export default function Find({ siteId }) {
                   <br />
                   ただし<strong>デコイ</strong>（ニセモノ）をクリックすると {DECOY_PENALTY_SEC}秒減ります。
                 </p>
+                <div className="input-group" style={{ margin: '16px 0' }}>
+                <input
+                  type="text"
+                  placeholder="ハンターの名前"
+                  maxLength={20}
+                  value={playerName}
+                  onChange={(e) => setPlayerName(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--line)' }}
+                />
+                </div>
                 {error && <p className="error">{error}</p>}
                 <div className="modal-actions">
                   <button className="primary" disabled={!stageReady || phase === 'starting'} onClick={start}>

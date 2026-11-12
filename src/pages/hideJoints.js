@@ -558,6 +558,9 @@ export class JointPainter extends Painter {
   }
 
   render() {
+    
+    /*return super.render();*/
+
     if (!this.lighting) return super.render();
     const { shade, shine } = this.lighting;
     const pixels = this.image.data;
@@ -569,6 +572,7 @@ export class JointPainter extends Painter {
       pixels[i * 4 + 3] = this.alpha[i];
     }
     this.ctx.putImageData(this.image, 0, 0);
+    
   }
 
   beginStroke(x, y, { splash = false, ...options }) {
