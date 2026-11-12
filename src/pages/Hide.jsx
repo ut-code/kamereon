@@ -1475,7 +1475,7 @@ export default function Hide({ siteId }) {
                 <InlineColorPicker color={color} onChange={(value) => { if (canEdit()) setColor(value); }}>
                   {hasEyeDropper && (
                     <Tab onClick={pickColor} title="配置場所の背景から色を拾う">
-                      <Icon name="eyedropper" /> スポイト
+                      <Icon name="eyedropper" /> 色をとる
                     </Tab>
                   )}
                   <Tab onClick={() => editPaint("fillAll", color)} title="全体を今の色で1回塗る">
