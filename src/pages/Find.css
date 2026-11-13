@@ -102,8 +102,8 @@
 /* 見つけた直後は輪を点滅させる */
 .chameleon-slot.blinking::after { animation: find-ring-blink .4s infinite alternate; }
 /* デコイ。押してしまったものと、終わったときに見せるものは破線の四角 */
-.chameleon-slot.decoy.tripped::after,
-.chameleon-slot.decoy.exposed::after {
+/*.chameleon-slot.decoy.tripped::after,*/
+/*.chameleon-slot.decoy.exposed::after {
   content: "";
   position: absolute;
   inset: -8px;
@@ -113,7 +113,7 @@
   animation: none;
 }
 .chameleon-slot.decoy.tripped img { opacity: .5; }
-
+*/
 /* 名前の札。輪の上に少し傾けて貼る */
 .slot-label {
   position: absolute;
@@ -131,7 +131,7 @@
 }
 .chameleon-slot.found .slot-label { background: var(--find); }
 .chameleon-slot.missed .slot-label { background: var(--hide); }
-.chameleon-slot.decoy .slot-label { background: var(--camo); color: var(--paper); }
+/*.chameleon-slot.decoy .slot-label { background: var(--camo); color: var(--paper); }*/
 
 /* 外したときの × と、デコイを押したときの札 */
 .miss-mark {
@@ -144,7 +144,7 @@
   transform: translate(-50%, -50%);
   animation: find-miss .7s ease-out forwards;
 }
-.miss-mark.decoy {
+/*.miss-mark.decoy {
   padding: 4px 14px 6px;
   background: var(--hide);
   box-shadow: 0 4px 0 var(--shadow-color);
@@ -153,7 +153,7 @@
   text-shadow: none;
   white-space: nowrap;
   animation: find-decoy 1.2s ease-out forwards;
-}
+}*/
 
 /* ---- スタート前のモーダル ---- */
 
@@ -173,12 +173,12 @@
 @keyframes find-ring-pop { from { opacity: 0; transform: scale(2); } }
 @keyframes find-ring-blink { to { opacity: .2; transform: scale(1.15); } }
 @keyframes find-miss { to { opacity: 0; transform: translate(-50%, -90%); } }
-@keyframes find-decoy {
+/*@keyframes find-decoy {
   0% { opacity: 0; transform: translate(-50%, -50%) rotate(-4deg) scale(.6); }
   15% { opacity: 1; transform: translate(-50%, -50%) rotate(-4deg) scale(1); }
   70% { opacity: 1; transform: translate(-50%, -75%) rotate(-4deg); }
   100% { opacity: 0; transform: translate(-50%, -95%) rotate(-4deg); }
-}
+}*/
 
 @media (prefers-reduced-motion: reduce) {
   .b-result,

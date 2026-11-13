@@ -29,24 +29,24 @@ const TOOLS = [
 // 手足の可動域を収めつつ、カメレオンと周囲の背景に寄った表示にする。
 const JOINT_VIEW_SIZE = 160;
 const HIDE_TIME_LIMIT_SEC = 5 * 60;
+
 const formatTime = (seconds) => {
   const whole = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 };
 
 const figureBounds = (f) => getFigureBounds(f.pose, f.rotation, f.joints, f.body);
+
 const jointLabel = (index, handle) =>
   handle === "bend" ? (index < 2 ? "ひじ" : "ひざ") : (index < 2 ? "手首" : "足首");
 
 function BodyPreview({ body }) {
   const canvasRef = useRef(null);
-
   useEffect(() => {
     const canvas = canvasRef.current;
     const painter = new JointPainter(canvas, "stand", 0, body);
     painter.fillAll("#2A1650");
   }, [body]);
-
   return <canvas ref={canvasRef} className="hide-body-preview" aria-hidden="true" />;
 }
 
@@ -111,6 +111,7 @@ function InlineColorPicker({ color, onChange, children }) {
     setHexDraft(value);
     onChange(value);
   };
+
   const pickAt = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     update({ ...hsv,
@@ -118,11 +119,13 @@ function InlineColorPicker({ color, onChange, children }) {
       v: 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
     });
   };
+
   const release = (e) => {
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
   };
+
   const commitHex = () => {
-    const match = hexDraft.trim().match(/^#?([\da-f]{6}|[\da-f]{3})$/i);
+    const match = hexDraft.trim().match(/^#?([a-f\d]{6}|[a-f\d]{3})$/i);
     if (!match) { setHexDraft(color); return; }
     const hex = match[1].length === 3 ? [...match[1]].map((c) => c + c).join("") : match[1];
     const value = `#${hex.toLowerCase()}`;
@@ -188,7 +191,7 @@ function InlineColorPicker({ color, onChange, children }) {
               onChange={(e) => {
                 const value = e.target.value;
                 setHexDraft(value);
-                if (/^#?[\da-f]{6}$/i.test(value)) onChange(`#${value.replace(/^#/, "").toLowerCase()}`);
+                if (/^#?[a-f\d]{6}$/i.test(value)) onChange(`#${value.replace(/^#/, "").toLowerCase()}`);
               }}
               onBlur={commitHex}
               onKeyDown={(e) => {
@@ -232,16 +235,12 @@ function InlineColorPicker({ color, onChange, children }) {
 }
 
 const AUTO_SCROLL_EDGE = 24; // 見えている範囲の上端・下端からこの距離（画面上の px）に入ったら自動スクロール
-const MAX_DECOYS = 3;
 const AUTO_SCROLL_MAX = 20; // 1フレームあたりの最大スクロール量 (px)
 const SHAKE_DISTANCE = 36; // 画面上の px。小さな手ぶれや表示倍率に左右されない。
 const SHAKE_TURN_WINDOW = 700;
 const SHAKE_TURNS_TO_CALM = 4;
 const hasEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
-
 const MAIN = "main";
-const figLabel = (f, figs) =>
-  f.decoy ? `デコイ${figs.filter((g) => g.decoy).indexOf(f) + 1}` : "本体";
 
 // 一方向への移動は数えず、十分な幅で素早く折り返した回数を数える。
 function trackShake(shake, point) {
@@ -289,8 +288,8 @@ export default function Hide({ siteId }) {
   const deadlineRef = useRef(0);
   const saveLockRef = useRef(false);
   const initialBody = useRef(new URLSearchParams(window.location.hash.split("?")[1]).get("body"));
-
-  // 本体とデコイ。{ key, decoy, x, y, body, pose, rotation, joints }
+  
+  // 本体 { key, x, y, body, pose, rotation, joints }
   const [figs, setFigs] = useState([]);
   const [activeKey, setActiveKey] = useState(MAIN);
   const [tool, setTool] = useState("move");
@@ -312,12 +311,12 @@ export default function Hide({ siteId }) {
   const [savedAt, setSavedAt] = useState(null);
 
   const active = figs.find((f) => f.key === activeKey);
-  const decoyCount = figs.filter((f) => f.decoy).length;
   activeRef.current = active;
   const paintSize = active ? figureBounds(active) : getFigureBounds("stand", 0);
   const editingJoints = tool === "joints";
   const remaining = deadline ? Math.max(0, (deadline - (savedAt ?? now)) / 1000) : HIDE_TIME_LIMIT_SEC;
   const editingLocked = timeUp || saving || Boolean(savedId);
+
   // 表示更新や背景タブのタイマーが遅れても、締切後の編集を受け付けない。
   const canEdit = () => deadlineRef.current > 0 && !saveLockRef.current
     && Date.now() < deadlineRef.current;
@@ -496,7 +495,7 @@ export default function Hide({ siteId }) {
   };
 
   // 今見えている範囲の中心（横に少しずらせる）に新しい人型を置く
-  const newFig = (key = MAIN, decoy = false, offset = 0) => {
+  const newFig = (key = MAIN, offset = 0) => {
     const c = stageRef.current.viewCenter();
     const body = active?.body ?? (Object.keys(BODY_TYPES).includes(initialBody.current)
       ? initialBody.current : "standard");
@@ -504,7 +503,6 @@ export default function Hide({ siteId }) {
     const s = getFigureBounds("stand", 0, joints, body);
     return {
       key,
-      decoy,
       body,
       pose: "stand",
       rotation: 0,
@@ -520,26 +518,6 @@ export default function Hide({ siteId }) {
     setDeadline(deadlineRef.current);
     setNow(started);
     setFigs([newFig()]);
-  };
-
-  const addDecoy = () => {
-    if (!canEdit() || !figs.length || decoyCount >= MAX_DECOYS) return;
-    onPointerUp();
-    setSplashes([]);
-    const key = `decoy-${nextKey.current++}`;
-    const decoy = newFig(key, true, (decoyCount + 1) * 90);
-    setFigs((fs) => [...fs, decoy]);
-    setActiveKey(key);
-  };
-
-  const removeDecoy = () => {
-    if (!canEdit() || !active?.decoy) return;
-    onPointerUp();
-    setSplashes([]);
-    delete painters.current[active.key];
-    delete canvasRefs.current[active.key];
-    setFigs((fs) => fs.filter((f) => f.key !== active.key));
-    setActiveKey(MAIN);
   };
 
   // canvas が表示されたら Painter を作る（再描画では作り直さない）
@@ -902,7 +880,6 @@ export default function Hide({ siteId }) {
     const dialog = paintDialogRef.current;
     dialog.showModal();
     syncPaintCanvas();
-
     // 配置先のページを同じ寸法で描画し、カメレオンと同じ倍率で切り出す。
     const background = paintBackgroundRef.current;
     const preview = paintCanvasRef.current;
@@ -1030,6 +1007,7 @@ export default function Hide({ siteId }) {
       // 塗る画面でも位置を動かせる。入力・色選択・関節の操作を優先する。
       if (e.defaultPrevented || dragRef.current || colorPickerRef.current ||
         e.target.closest?.("input, select, textarea, [contenteditable]:not([contenteditable='false']), .hide-color-spectrum, .hide-joint-handle")) return;
+
       const d = {
         ArrowLeft: [-1, 0],
         ArrowRight: [1, 0],
@@ -1093,6 +1071,7 @@ export default function Hide({ siteId }) {
     onPointerUp();
     setSaving(true);
     setError("");
+
     const toData = (f) => {
       const { w, h } = figureBounds(f);
       return {
@@ -1109,7 +1088,7 @@ export default function Hide({ siteId }) {
         site: siteId,
         name,
         ...toData(main),
-        decoys: figs.filter((f) => f.decoy).map(toData),
+        decoys: [],
       });
       setSavedAt(submittedAt);
       setSavedId(id);
@@ -1123,7 +1102,7 @@ export default function Hide({ siteId }) {
 
   return (
     <div className="b-game">
-      {/* 上の段：ホーム・モード名・遊び方・残り時間と、元に戻す・名前・保存／下の段：道具・体型と、枠の表示・デコイ */}
+      {/* 上の段：ホーム・モード名・遊び方・残り時間と、元に戻す・名前・保存／下の段：道具・体型と、枠の表示 */}
       <header className="b-tools">
         <div className="b-tools__row">
           <div className="b-tools__group">
@@ -1167,7 +1146,6 @@ export default function Hide({ siteId }) {
             </Sticker>
           </div>
         </div>
-
         <div className="b-tools__row">
           <div className="b-tools__group">
             {TOOLS.map((t) => (
@@ -1201,24 +1179,14 @@ export default function Hide({ siteId }) {
           </div>
           <div className="b-tools__group">
             <Check checked={outline} onChange={(e) => setOutline(e.target.checked)}>枠を表示</Check>
-            <span className="b-tools__sep" aria-hidden="true" />
-            <Tab disabled={editingLocked || !figs.length || decoyCount >= MAX_DECOYS}
-              onClick={addDecoy} title="見つける人をだますニセモノを置く">
-              <Icon name="decoy" /> デコイを追加 ({decoyCount}/{MAX_DECOYS})
-            </Tab>
-            {active?.decoy && (
-              <Tab disabled={editingLocked} onClick={removeDecoy}>
-                <Icon name="trash" /> デコイを削除
-              </Tab>
-            )}
           </div>
         </div>
       </header>
-      {/* 帯の下の1行。編集中の人型と位置。デコイを置いたら注意を添える */}
+
+      {/* 帯の下の1行。編集中の人型と位置 */}
       <div className="b-hint">
-        {active && <strong>{timeUp ? "編集終了" : `${figLabel(active, figs)}を編集中`}</strong>}
+        {active && <strong>{timeUp ? "編集終了" : "本体を編集中"}</strong>}
         <span>位置: {active ? `(${active.x}, ${active.y})` : "-"}</span>
-        {decoyCount > 0 && <span>／　デコイをクリックした人は残り時間が減ります</span>}
         {error && <span className="b-hint__error" role="alert">{error}</span>}
       </div>
 
@@ -1238,7 +1206,6 @@ export default function Hide({ siteId }) {
                   "chameleon editable",
                   `tool-${tool}`,
                   outline && "outlined",
-                  f.decoy && "decoy",
                   f.key === activeKey && "active",
                   carry && "is-carried",
                 ]
@@ -1281,10 +1248,10 @@ export default function Hide({ siteId }) {
               )}
               {outline && !carry && (
                 <span
-                  className={`fig-tag ${f.decoy ? "decoy" : ""}`}
+                  className="fig-tag"
                   style={{ left: f.x, top: f.y }}
                 >
-                  {figLabel(f, figs)}
+                  本体
                 </span>
               )}
             </div>
@@ -1296,7 +1263,7 @@ export default function Hide({ siteId }) {
         <dialog
           ref={paintDialogRef}
           className="hide-paint-modal"
-          aria-label={`${figLabel(active, figs)}の色塗り・ポーズ調整`}
+          aria-label="本体の色塗り・ポーズ調整"
           onCancel={(e) => {
             e.preventDefault();
             closePaint();
@@ -1317,7 +1284,6 @@ export default function Hide({ siteId }) {
               onLostPointerCapture={endPaintDialogDrag}>
               <span className="hide-paint-grip" aria-hidden="true" />
             </header>
-
             <div className="hide-paint-controls">
               <div className="hide-paint-row">
                 <div className="hide-paint-group">
@@ -1368,7 +1334,6 @@ export default function Hide({ siteId }) {
                 </label>
               </div>
             </div>
-
             <div className="hide-paint-surface" ref={paintSurfaceRef}>
               <iframe
                 ref={paintBackgroundRef}
@@ -1530,7 +1495,6 @@ export default function Hide({ siteId }) {
               「ポーズ・角度」の画面で、<Icon name="rotateLeft" /> <Icon name="rotateRight" /> を押すと全体の角度を
               {ROTATE_STEP}度ずつ調整できます。角度の数字を押すとまっすぐに戻ります
             </li>
-            <li><Icon name="decoy" /> デコイ（ニセモノ）を最大{MAX_DECOYS}体まで置けます。デコイをクリックした人は残り時間が減ります</li>
             <li>Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift を押しながらだと10pxずつ移動します</li>
           </ul>
         </Modal>
@@ -1560,14 +1524,7 @@ export default function Hide({ siteId }) {
             <h2 id="hide-saved-title" className="b-modal__title">隠れました！</h2>
           </div>
           <p>
-            「{name.trim() || "ななしのカメレオン"}」がページに潜みました。
-            {decoyCount > 0 && (
-              <>
-                <br />
-                デコイ {decoyCount} 体も配置しました。
-              </>
-            )}
-            <br />
+            「{name.trim() || "ななしのカメレオン"}」がページに潜みました。<br />
             何人に探され、何人に見つかったかはホームで確認できます。
           </p>
           <div className="b-modal__actions">

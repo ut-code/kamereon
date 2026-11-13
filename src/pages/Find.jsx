@@ -6,16 +6,14 @@ import { api } from '../api.js';
 import './Find.css';
 
 const ZOOMS = [1, 1.5, 2, 3];
-const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
-const DECOY_PENALTY_SEC = 10; // デコイをクリックしたときに減る時間
-const CLICK_COOLDOWN_MS = 5000; // フィールドをクリックしたあとのクールタイム
-const DEFAULT_TIME_LIMIT_SEC = 180; // 制限時間（server/api.js の TIME_LIMIT_SEC と同じ）。スタート前は game.timeLimit がまだ無いので、こちらを表示に使う
-const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。Find.css の .stage-overlay.seeking のカーソルと合わせる
-const SHADOW_MIN_OFFSET = 6; // 影のずれの最小値 (ページpx)
-const SHADOW_MAX_EXTRA = 12; // 光源から離れるほど増える影のずれの上限 (ページpx)
-const SHADOW_DIST_RATIO = 0.2; // 光源からの距離に対する影のずれの割合
+const HIT_TOLERANCE = 3;
+const CLICK_COOLDOWN_MS = 5000;
+const DEFAULT_TIME_LIMIT_SEC = 180;
+const RETICLE_RADIUS_PX = 48;
+const SHADOW_MIN_OFFSET = 6;
+const SHADOW_MAX_EXTRA = 12;
+const SHADOW_DIST_RATIO = 0.2;
 
-// 画像の不透明ピクセルをクリックしたかどうかを判定するためのマスクを作る
 async function loadAlphaMask(src) {
   const img = new Image();
   img.src = src;
@@ -43,14 +41,10 @@ function hits(c, mask, px, py) {
   return false;
 }
 
-// 懐中電灯（照準）に照らされたときの影。照準の円と重なった部分だけ表示する
 function FlashlightShadow({ obj, aim, radius }) {
-  // 照準の円とカメレオンの矩形が重なっていなければ何も出さない
   const nx = Math.max(obj.x, Math.min(aim.x, obj.x + obj.w));
   const ny = Math.max(obj.y, Math.min(aim.y, obj.y + obj.h));
   if ((aim.x - nx) ** 2 + (aim.y - ny) ** 2 > radius * radius) return null;
-
-  // 影は光源（照準の中心）から遠ざかる向きにずらす
   const vx = obj.x + obj.w / 2 - aim.x;
   const vy = obj.y + obj.h / 2 - aim.y;
   const dist = Math.hypot(vx, vy);
@@ -60,7 +54,6 @@ function FlashlightShadow({ obj, aim, radius }) {
   const dy = uy * len * 1.2;
   const whitedx = dx * 1.4;
   const whitedy = dy * 1.4;
-
   return (
     <>
     <img
@@ -71,7 +64,6 @@ function FlashlightShadow({ obj, aim, radius }) {
       style={{
         left: dx,
         top: dy,
-        // clip-path は影要素自身の座標系なので、照準の中心を影要素基準に直す
         clipPath: `circle(${radius}px at ${aim.x - obj.x - dx}px ${aim.y - obj.y - dy}px)`,
         opacity: 0.3,
       }}
@@ -84,7 +76,6 @@ function FlashlightShadow({ obj, aim, radius }) {
       style={{
         left: whitedx,
         top: whitedy,
-        // clip-path は影要素自身の座標系なので、照準の中心を影要素基準に直す
         clipPath: `circle(${radius}px at ${aim.x - obj.x - whitedx}px ${aim.y - obj.y - whitedy}px)`,
         filter: 'brightness(0) invert(1) drop-shadow(0px 0px 4px rgba(255, 255, 255, 1))'
       }}
@@ -102,27 +93,25 @@ export default function Find({ siteId }) {
   const hideScoresRef = useRef({});
   const savedGameRef = useRef(null);
   const [stageReady, setStageReady] = useState(false);
-  const [phase, setPhase] = useState('intro'); // intro | starting | playing | over | empty
+  const [phase, setPhase] = useState('intro');
   const [game, setGame] = useState(null);
   const [found, setFound] = useState([]);
   const [deadline, setDeadline] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [misses, setMisses] = useState([]);
-  const [tripped, setTripped] = useState([]); // 引っかかったデコイの key
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState('');
-  const [cooldownUntil, setCooldownUntil] = useState(0); // この時刻まではクリックできない
+  const [cooldownUntil, setCooldownUntil] = useState(0);
   const [saveAttempt, setSaveAttempt] = useState(0);
   const [animatingFound, setAnimatingFound] = useState([]);
   const [showFound, setShowFound] = useState(false);
-  const [aim, setAim] = useState(null); // 照準の中心（ページ座標）。ステージ外なら null
-  const pointerRef = useRef(null); // 最後のマウス位置（クライアント座標）
+  const [aim, setAim] = useState(null);
+  const pointerRef = useRef(null);
   const aimFrameRef = useRef(null);
   const [playerName, setPlayerName] = useState('');
   const [totalScore, setTotalScore] = useState(0);
   const activePlayerNameRef = useRef('ななしのハンター');
 
-  // マウス移動・スクロールのたびに照準位置を更新する（1フレームに1回まで）
   const scheduleAim = () => {
     if (aimFrameRef.current != null) return;
     aimFrameRef.current = requestAnimationFrame(() => {
@@ -142,7 +131,6 @@ export default function Find({ siteId }) {
     try {
       const finalPlayerName = playerName.trim() || 'ななしのハンター';
       activePlayerNameRef.current = finalPlayerName;
-
       const g = await api.startGame(siteId, []);
       if (g.chameleons.length === 0) {
         setPhase('empty');
@@ -156,14 +144,11 @@ export default function Find({ siteId }) {
           isFound: false,
         };
       });
-      // デコイは { ...位置, key, owner } に平らにしておく
-      const decoys = g.chameleons.flatMap((c) =>
-        (c.decoys ?? []).map((d, i) => ({ ...d, key: `${c.id}:${i}`, owner: c.name })),
-      );
-      const targets = [...g.chameleons.map((c) => [c.id, c.image]), ...decoys.map((d) => [d.key, d.image])];
+     
+      const targets = g.chameleons.map((c) => [c.id, c.image]);
       const masks = await Promise.all(targets.map(([, image]) => loadAlphaMask(image)));
       masksRef.current = Object.fromEntries(targets.map(([key], i) => [key, masks[i]]));
-      setGame({ ...g, decoys });
+      setGame(g);
       setDeadline(Date.now() + g.timeLimit * 1000);
       setNow(Date.now());
       setPhase('playing');
@@ -173,7 +158,6 @@ export default function Find({ siteId }) {
     }
   };
 
-  // スクロールやズームでマウスの下のページ位置が変わったときも照準を追従させる
   useEffect(() => {
     if (phase !== 'playing') return;
     document.addEventListener('scroll', scheduleAim, true);
@@ -184,7 +168,6 @@ export default function Find({ siteId }) {
     };
   }, [phase]);
 
-  // タイマー
   useEffect(() => {
     if (phase !== 'playing') return;
     const id = setInterval(() => setNow(Date.now()), 250);
@@ -195,7 +178,6 @@ export default function Find({ siteId }) {
     if (phase === 'playing' && (remaining <= 0 || found.length === game.chameleons.length)) setPhase('over');
   }, [phase, remaining, found, game]);
 
-  // 終了ボタン・全員発見・時間切れで共通の保存処理を使う。
   useEffect(() => {
     if (phase !== 'over' || savedGameRef.current === game.gameId) return;
     savedGameRef.current = game.gameId;
@@ -222,10 +204,8 @@ export default function Find({ siteId }) {
     const hit = game.chameleons.find(
       (c) => !found.includes(c.id) && hits(c, masksRef.current[c.id], x, y),
     );
-    const decoy = !hit && game.decoys.find(
-      (d) => !tripped.includes(d.key) && hits(d, masksRef.current[d.key], x, y),
-    );
-    startCooldown(); // 当たり・デコイ・外れのどれでもクールタイムを発動する
+   
+    startCooldown();
     if (hit) {
       setFound((f) => [...f, hit.id]);
       const hState = hideScoresRef.current[hit.id];
@@ -241,12 +221,6 @@ export default function Find({ siteId }) {
       setTimeout(() => {
         setAnimatingFound((a) => a.filter((id) => id !== hit.id));
       }, 2000);
-    } else if (decoy) {
-      setTripped((t) => [...t, decoy.key]);
-      setDeadline((d) => d - DECOY_PENALTY_SEC * 1000);
-      const miss = { id: Date.now() + Math.random(), x, y, decoy: true };
-      setMisses((m) => [...m, miss]);
-      setTimeout(() => setMisses((m) => m.filter((v) => v.id !== miss.id)), 1200);
     } else {
       const miss = { id: Date.now() + Math.random(), x, y };
       setMisses((m) => [...m, miss]);
@@ -268,50 +242,40 @@ export default function Find({ siteId }) {
 
   useEffect(() => {
     if (phase !== 'playing' || !game?.chameleons) return;
-
     game.chameleons.forEach((c) => {
       if (!hideScoresRef.current[c.id]) {
         hideScoresRef.current[c.id] = { currentScore: 0, wasVisible: false, isFound: false };
       }
     });
-
     const updateScores = (addScore) => {
       if (!stageRef.current) return;
       const viewRect = stageRef.current.viewRect();
-
       game.chameleons.forEach((c) => {
         const state = hideScoresRef.current[c.id];
         if (state.isFound) return;
-
         const isVisible = (
           c.x + c.w >= viewRect.left &&
           c.x <= viewRect.right &&
           c.y + c.h >= viewRect.top &&
           c.y <= viewRect.bottom
         );
-
         if (isVisible) {
           state.wasVisible = true;
-
           const cx = c.x + c.w / 2;
           const cy = c.y + c.h / 2;
           const dist = Math.hypot(pointerPos.current.x - cx, pointerPos.current.y - cy);
-
           const maxDist = 200;
           const ratio = Math.max(0, Math.min(1, 1 - dist / maxDist));
           const multiplier = 1 + 2 * ratio;
-
           if (addScore) state.currentScore += multiplier;
         }
       });
     };
     updateScores(false);
     const interval = setInterval(() => updateScores(true), 1000);
-
     return () => clearInterval(interval);
   }, [phase, game]);
 
-  // 終わったときにタイマーの代わりに出す札（タイムアップ・全員発見・途中で終了）
   const result = remaining <= 0 ? { text: 'タイムアップ！', color: 'hide' }
     : found.length === total ? { text: '全員発見！', color: 'find' }
     : { text: '終了', color: 'paper' };
@@ -319,7 +283,6 @@ export default function Find({ siteId }) {
   return (
     <div className="b-game">
       <header className="b-hud">
-        {/* 左：ホーム、モード名、倍率 */}
         <div className="b-hud__group b-hud__group--start">
           <Tab as="a" href="#/" tilt={-2}>← ホーム</Tab>
           <span className="b-hud__mode">見つける</span>
@@ -330,8 +293,6 @@ export default function Find({ siteId }) {
             <span className="b-hud__zoom-value">{Math.round(zoom * 100)}%</span>
           </label>
         </div>
-
-        {/* 真ん中：残り時間。終了後は結果 */}
         <div className="b-hud__center">
           {game && phase === 'playing' && (
             <Timer time={fmt(remaining)} ratio={remaining / (game.timeLimit ?? DEFAULT_TIME_LIMIT_SEC)} danger={remaining < 30} />
@@ -343,8 +304,6 @@ export default function Find({ siteId }) {
             </div>
           )}
         </div>
-
-        {/* 右：クールタイム、残りの数、各ボタン */}
         <div className="b-hud__group b-hud__group--end">
           {game && phase === 'playing' && (
             <>
@@ -372,7 +331,6 @@ export default function Find({ siteId }) {
           {over && <Sticker as="a" href={`#/find?site=${siteId}&t=${Date.now()}`} size="s" color="find" tilt={2}>もう一度</Sticker>}
         </div>
       </header>
-
       <SiteStage
         ref={stageRef}
         siteId={siteId}
@@ -380,7 +338,6 @@ export default function Find({ siteId }) {
         onReady={() => setStageReady(true)}
         overlayProps={{
           onClick: onStageClick,
-          // ダブルクリック以降のクリックでブラウザが範囲選択を始めないようにする
           onMouseDown: (e) => {
             if (e.detail > 1) e.preventDefault();
           },
@@ -414,27 +371,13 @@ export default function Find({ siteId }) {
             </div>
           );
         })}
-        {game?.decoys.map((d) => {
-          const isTripped = tripped.includes(d.key);
-          return (
-            <div
-              key={d.key}
-              className={`chameleon-slot decoy ${isTripped ? 'tripped' : ''} ${over ? 'exposed' : ''}`}
-              style={{ left: d.x, top: d.y, width: d.w, height: d.h }}
-            >
-              {showShadow && !isTripped && <FlashlightShadow obj={d} aim={aim} radius={shadowRadius} />}
-              <img src={d.image} alt="" draggable={false} />
-              {(isTripped || over) && <span className="slot-label">デコイ（{d.owner}）</span>}
-            </div>
-          );
-        })}
+       
         {misses.map((m) => (
-          <span key={m.id} className={`miss-mark ${m.decoy ? 'decoy' : ''}`} style={{ left: m.x, top: m.y }}>
-            {m.decoy ? `デコイ！ −${DECOY_PENALTY_SEC}秒` : '×'}
+          <span key={m.id} className="miss-mark" style={{ left: m.x, top: m.y }}>
+            ×
           </span>
         ))}
       </SiteStage>
-
       {phase === 'empty' && (
         <Modal tapes={['hide', null]} aria-labelledby="find-empty-title">
           <h2 id="find-empty-title" className="b-modal__title">まだ誰も隠れていません</h2>
@@ -456,9 +399,8 @@ export default function Find({ siteId }) {
           <div className="b-stats">
             <div className="b-fill--find" style={tiltStyle(-2)}><strong>最大5体</strong><span>潜んでいる</span></div>
             <div className="b-fill--accent" style={tiltStyle(1.5)}><strong>{fmt(DEFAULT_TIME_LIMIT_SEC)}</strong><span>制限時間</span></div>
-            <div className="b-fill--hide" style={tiltStyle(-1)}><strong>−{DECOY_PENALTY_SEC}秒</strong><span>デコイを押すと</span></div>
           </div>
-          <p className="b-modal__note">クリックするたびに{CLICK_COOLDOWN_MS / 1000}秒間はクリックできません（当たり・外れ・デコイのどれでも）</p>
+          <p className="b-modal__note">クリックするたびに{CLICK_COOLDOWN_MS / 1000}秒間はクリックできません（当たり・外れのどれでも）</p>
           <label className="b-player-name">
             ハンターの名前
             <input
