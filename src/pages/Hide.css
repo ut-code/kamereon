@@ -152,6 +152,9 @@
 }
 .hide-paint-modal > .b-tape { z-index: 1; }
 .hide-paint-modal::backdrop { background: transparent; }
+/* スポイトで色を拾う間は、ダイアログを素通りさせて背景を見せる */
+.hide-paint-modal.is-picking-color { pointer-events: none; }
+.hide-paint-modal.is-picking-color::backdrop { background: transparent; backdrop-filter: none; }
 
 .hide-paint-panel {
   display: grid;
@@ -392,12 +395,3 @@
   .hide-paint-splash { display: none; }
   .b-help { transition: none; }
 }
-
-/* 各ブラウザ共通の採色画面。表示した画像と採色する画素を一致させる。 */
-.hide-color-sampler,
-.hide-color-sampler-loading { position: absolute; inset: 0; z-index: 5; }
-.hide-color-sampler canvas { display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: manipulation; }
-.hide-color-sampler canvas:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
-.hide-color-sampler-crosshair { position: absolute; width: 15px; height: 15px; border: 2px solid white; outline: 1px solid black; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-.hide-color-sampler-instruction { font-size: 13px; font-weight: 800; }
-.hide-color-sampler-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; background: var(--paper); color: var(--ink); }

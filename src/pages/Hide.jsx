@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import SiteStage from "../components/SiteStage.jsx";
 import Icon from "../components/Icon.jsx";
-import BackgroundColorSampler from "../components/BackgroundColorSampler.jsx";
-import { captureBackground } from "../components/captureBackground.js";
 import { POSES, ROTATE_STEP } from "../figure.js";
 import { hexToRgb } from "../painter.js";
 import {
@@ -239,6 +237,7 @@ const AUTO_SCROLL_MAX = 20; // 1フレームあたりの最大スクロール量
 const SHAKE_DISTANCE = 36; // 画面上の px。小さな手ぶれや表示倍率に左右されない。
 const SHAKE_TURN_WINDOW = 700;
 const SHAKE_TURNS_TO_CALM = 4;
+const hasEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
 
 const MAIN = "main";
 const figLabel = (f, figs) =>
@@ -307,8 +306,6 @@ export default function Hide({ siteId }) {
   const [showHelp, setShowHelp] = useState(false);
   const [showPaint, setShowPaint] = useState(false);
   const [paintBackgroundReady, setPaintBackgroundReady] = useState(false);
-  const [colorSample, setColorSample] = useState(null);
-  const [colorPickError, setColorPickError] = useState("");
   const [deadline, setDeadline] = useState(0);
   const [now, setNow] = useState(Date.now);
   const [timeUp, setTimeUp] = useState(false);
@@ -402,7 +399,7 @@ export default function Hide({ siteId }) {
 
   const closePaint = () => {
     if (colorPickerRef.current) {
-      cancelColorPick();
+      colorPickerRef.current.abort();
       return;
     }
     endPaintDialogDrag();
@@ -1054,47 +1051,38 @@ export default function Hide({ siteId }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeKey, active, showHelp]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cancelColorPick = () => {
-    colorPickerRef.current?.abort();
-    colorPickerRef.current = null;
-    setColorSample(null);
-  };
-
   const pickColor = async () => {
-    if (!canEdit() || !paintBackgroundReady || colorPickerRef.current) return;
+    if (!canEdit()) return;
+    const dialog = paintDialogRef.current;
     const controller = new AbortController();
     colorPickerRef.current = controller;
     onPointerUp();
-    setColorPickError("");
-    setColorSample({ loading: true });
+    // モーダルは残し、外側の背景幕だけを透過して元の色を拾えるようにする。
+    dialog?.classList.add("is-picking-color");
     try {
-      // 必要になった時だけ読み込み、配置先の背景だけを切り出す。
-      const background = paintBackgroundRef.current;
-      const doc = background.contentDocument;
-      const surface = paintSurfaceRef.current;
-      const area = surface.getBoundingClientRect();
-      const frame = background.getBoundingClientRect();
-      const scale = frame.width / Number(background.width);
-      const image = await captureBackground(doc, {
-        x: (area.left + surface.clientLeft - frame.left) / scale,
-        y: (area.top + surface.clientTop - frame.top) / scale,
-        width: Math.ceil(surface.clientWidth / scale),
-        height: Math.ceil(surface.clientHeight / scale),
-        windowWidth: Number(background.width),
-        windowHeight: Number(background.height),
-      }, controller.signal);
+      // 背景幕が消えたフレームを表示してから画面の色を取得する。
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+      if (controller.signal.aborted) return;
+      const { sRGBHex } = await new window.EyeDropper().open({
+        signal: controller.signal,
+      });
       if (controller.signal.aborted || !canEdit()) return;
-      // 読み取り可能かを先に確認し、選択時に突然失敗しないようにする。
-      image.getContext("2d").getImageData(0, 0, 1, 1);
-      setColorSample({ image });
-    } catch (error) {
-      if (!controller.signal.aborted) {
-        console.warn("背景の採色に失敗しました", error);
-        setColorPickError("背景の色を読み取れませんでした。もう一度お試しください。");
-        cancelColorPick();
+      // 一部ブラウザは rgb(...) 形式で返す
+      if (sRGBHex.startsWith("#")) setColor(sRGBHex.slice(0, 7));
+      else {
+        const [r, g, b] = sRGBHex.match(/\d+/g).map(Number);
+        setColor(
+          "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join(""),
+        );
       }
+      setTool("pen");
+    } catch {
+      // キャンセル
     } finally {
-      if (controller.signal.aborted && colorPickerRef.current === controller) cancelColorPick();
+      if (colorPickerRef.current === controller) colorPickerRef.current = null;
+      dialog?.classList.remove("is-picking-color");
     }
   };
 
@@ -1327,8 +1315,7 @@ export default function Hide({ siteId }) {
               onPointerUp={endPaintDialogDrag}
               onPointerCancel={endPaintDialogDrag}
               onLostPointerCapture={endPaintDialogDrag}>
-              {colorSample ? <span className="hide-color-sampler-instruction" role="status">背景をクリック・タップして色をとる</span>
-                : <span className="hide-paint-grip" aria-hidden="true" />}
+              <span className="hide-paint-grip" aria-hidden="true" />
             </header>
 
             <div className="hide-paint-controls">
@@ -1395,20 +1382,6 @@ export default function Hide({ siteId }) {
                 aria-hidden="true"
                 onLoad={() => setPaintBackgroundReady(true)}
               />
-              {colorSample?.loading && (
-                <div className="hide-color-sampler-loading" role="status">
-                  背景の色を準備中…
-                  <Tab onClick={cancelColorPick}>キャンセル</Tab>
-                </div>
-              )}
-              {colorSample?.image && (
-                <BackgroundColorSampler image={colorSample.image}
-                  onCancel={cancelColorPick}
-                  onPick={(value) => {
-                    if (canEdit()) setColor(value);
-                    cancelColorPick();
-                  }} />
-              )}
               {!paintBackgroundReady && (
                 <div className="hide-paint-background-loading" role="status">
                   背景を読み込み中…
@@ -1500,11 +1473,11 @@ export default function Hide({ siteId }) {
               <div className={tool === "pen" ? undefined : "is-inactive"}
                 aria-hidden={tool !== "pen"}>
                 <InlineColorPicker color={color} onChange={(value) => { if (canEdit()) setColor(value); }}>
-                  <Tab onClick={colorSample ? cancelColorPick : pickColor} disabled={!paintBackgroundReady}
-                    title="配置場所の背景から色を拾う">
-                    <Icon name="eyedropper" /> {colorSample ? "キャンセル" : "色をとる"}
-                  </Tab>
-                  {colorPickError && <p className="b-alert" role="alert">{colorPickError}</p>}
+                  {hasEyeDropper && (
+                    <Tab onClick={pickColor} title="配置場所の背景から色を拾う">
+                      <Icon name="eyedropper" /> 色をとる
+                    </Tab>
+                  )}
                   <Tab onClick={() => editPaint("fillAll", color)} title="全体を今の色で1回塗る">
                     <Icon name="fill" /> 全体塗り
                   </Tab>
