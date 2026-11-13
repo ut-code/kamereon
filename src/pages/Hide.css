@@ -94,7 +94,7 @@
 }
 /* 枠：本体は桃色、デコイは紫。選んでいるものは実線で太く */
 .chameleon.outlined { outline: 2px dashed var(--hide); outline-offset: 2px; }
-.chameleon.outlined.decoy { outline-color: var(--camo); }
+/*.chameleon.outlined.decoy { outline-color: var(--camo); }*/
 .chameleon.outlined.active { outline-style: solid; outline-width: 3px; }
 .chameleon.tool-move { cursor: grab; }
 .chameleon.tool-move:active { cursor: grabbing; }

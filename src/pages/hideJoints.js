@@ -1,4 +1,4 @@
-import { FIG_SCALE, POSES, figureSize } from "../figure.js";
+import { FIG_RATIO, FIG_SCALE, POSES, figureSize } from "../figure.js";
 import { Painter } from "../painter.js";
 
 export const SPLASH_SIZE_MULTIPLIER = 4;
@@ -71,7 +71,7 @@ function createSplashStamp() {
 }
 
 // 関節の座標は figure.js の 72 × 160 と同じ。画面上では 0.8 倍。
-const RATIO = 0.8;
+const RATIO = FIG_RATIO;
 const CENTER = { x: 36, y: 80 };
 const copyJoints = (joints) => joints.map((limb) => ({
   ...limb,

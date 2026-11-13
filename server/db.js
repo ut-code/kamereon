@@ -9,9 +9,9 @@ sqlite.exec(readFileSync(new URL('../migrations/0001_initial.sql', import.meta.u
 
 // 既存DBへの列追加：デコイ（[{x, y, w, h, image}] の JSON）
 const columns = sqlite.prepare('PRAGMA table_info(chameleons)').all().map((c) => c.name);
-if (!columns.includes('decoys')) {
+/*if (!columns.includes('decoys')) {
   sqlite.exec(`ALTER TABLE chameleons ADD COLUMN decoys TEXT NOT NULL DEFAULT '[]'`);
-}
+}*/
 
 if (!columns.includes('total_hide_score')) {
   sqlite.exec(`ALTER TABLE chameleons ADD COLUMN total_hide_score REAL NOT NULL DEFAULT 0`);

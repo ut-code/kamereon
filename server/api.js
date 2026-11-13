@@ -3,13 +3,12 @@ import { SITES } from './sites.js';
 
 const TIME_LIMIT_SEC = 180;
 const MAX_IMAGE_BYTES = 400_000;
-const MAX_DECOYS = 3;
 
 const route = (handler) => (req, res, next) => {
   Promise.resolve(handler(req, res)).catch(next);
 };
 
-const toChameleon = (row, { withDecoys = false } = {}) => ({
+const toChameleon = (row) => ({
   id: row.id,
   site: row.site,
   name: row.name,
@@ -18,7 +17,6 @@ const toChameleon = (row, { withDecoys = false } = {}) => ({
   w: row.w,
   h: row.h,
   image: row.image,
-  ...(withDecoys && { decoys: JSON.parse(row.decoys ?? '[]') }),
   searched: row.searched,
   found: row.found,
   createdAt: row.created_at,
@@ -66,29 +64,19 @@ export function createApi(db) {
   }));
 
   api.post('/chameleons', route(async (req, res) => {
-    const { site, name, x, y, w, h, image, decoys = [] } = req.body ?? {};
+    const { site, name, x, y, w, h, image } = req.body ?? {};
     if (typeof site !== 'string' || !Object.hasOwn(SITES, site)) {
       return res.status(400).json({ error: 'unknown site' });
     }
     if (![x, y, w, h].every(Number.isFinite)) return res.status(400).json({ error: 'invalid position' });
     if (!validFigure({ x, y, w, h, image })) return res.status(400).json({ error: 'invalid image' });
-    if (!Array.isArray(decoys) || decoys.length > MAX_DECOYS || !decoys.every(validFigure)) {
-      return res.status(400).json({ error: 'invalid decoys' });
-    }
-    const cleanDecoys = decoys.map((decoy) => ({
-      x: decoy.x,
-      y: decoy.y,
-      w: Math.round(decoy.w),
-      h: Math.round(decoy.h),
-      image: decoy.image,
-    }));
+    
     const cleanName = String(name ?? '').trim().slice(0, 20) || 'ななしのカメレオン';
     const id = crypto.randomUUID();
     await db.prepare(`
-      INSERT INTO chameleons (id, site, name, x, y, w, h, image, decoys, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, site, cleanName, x, y, Math.round(w), Math.round(h), image,
-      JSON.stringify(cleanDecoys), new Date().toISOString()).run();
+      INSERT INTO chameleons (id, site, name, x, y, w, h, image, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, site, cleanName, x, y, Math.round(w), Math.round(h), image, new Date().toISOString()).run();
     res.status(201).json({ id });
   }));
 
@@ -119,7 +107,7 @@ export function createApi(db) {
     res.status(201).json({
       gameId,
       timeLimit: TIME_LIMIT_SEC,
-      chameleons: results.map((row) => toChameleon(row, { withDecoys: true })),
+      chameleons: results.map((row) => toChameleon(row)),
     });
   }));
 
