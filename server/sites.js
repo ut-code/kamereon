@@ -26,10 +26,16 @@ export const SITES = {
     file: 'museum.html',
     width: 1280,
   },
-   library: {
-    title: '水鏡文庫 ホームページ',
+  library1: {
+    title: 'AQUA BIBLIOTHECA -ABOVE WATER-',
     url: '#',
-    file: 'library.html',
+    file: 'library1.html',
+    width: 1280,
+  },
+  library2: {
+    title: 'AQUA BIBLIOTHECA -UNDER WATER-',
+    url: '#',
+    file: 'library2.html',
     width: 1280,
   },
 };
