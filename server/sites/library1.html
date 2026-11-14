@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AQUA BIBLIOTHECA - 水鏡文庫</title>
+    <title>AQUA BIBLIOTHECA - ABOVE WATER</title>
     <style>
        /* 全体ベース設定 */
         body { 
@@ -15,7 +15,7 @@
             font-family: "Shippori Mincho", "Zen Old Mincho", serif; 
         }
 
-       /* 追従しない、おしゃれなトップメニュー */
+       /* トップメニュー */
         .glass-nav {
             position: absolute; /* fixed（追従）をやめ、最初の画面に固定 */
             top: 30px; /* 画面の一番上の方に配置 */
@@ -25,7 +25,7 @@
             justify-content: center;
             gap: 40px; /* メニューの文字の間隔 */
             z-index: 100;
-
+            
             /* すりガラス風の美しいカプセル型デザイン */
             background: rgba(10, 17, 24, 0.3);
             backdrop-filter: blur(10px);
@@ -158,8 +158,8 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.6); /* ★0.6の部分で黒の濃さを調整（0〜1） */
-            pointer-events: none;
+            background-color: rgba(228, 235, 242, 0.2); /* ★0.6の部分で黒の濃さを調整（0〜1） */
+            pointer-events: none; 
             z-index: 2; /* 画像より上で、パネル(z-index:10)より下 */
         }
 /* -----------------------------------
@@ -198,13 +198,13 @@
         .art-half .real-img,
         .art-third .real-img {
             /* HTMLに書かれた高さを無視して、画面の70%の高さに強制拡大 */
-            height: 630px !important;
+            height: 630px !important; 
         }
 
         /* ② 1枚ドーンと置かれている写真（※概要パネルがある部分は除外する） */
         .art-section-full:not(:has(.glass-panel)) .real-img {
             /* HTMLに書かれた高さを無視して、画面の80%の高さに強制拡大 */
-            height: 960px !important;
+            height: 960px !important; 
         }
         .art-section-full:has(.glass-panel) {
             margin-top: 15px;
@@ -255,16 +255,16 @@
             display: flex; 
             justify-content: space-between; 
             font-size: 13px; 
-            color: #ccc; 
+            color: #000000; 
             font-family: Arial, sans-serif; 
             background-size: cover; 
             background-position: center; 
             background-color: #020617; 
-            text-shadow: 0 2px 5px rgba(0,0,0,0.9); 
+            text-shadow: 0 2px 5px rgba(238, 239, 244, 0.9); 
             border-top: 1px solid rgba(255,255,255,0.1);
-             margin: 15px 0;
+             margin: 15px 0; 
         }
-        .footer-column h3 { color: #fff; margin-top: 0; margin-bottom: 25px; font-size: 14px; letter-spacing: 3px; }
+        .footer-column h3 { color: #000; margin-top: 0; margin-bottom: 25px; font-size: 14px; letter-spacing: 3px; }
         .footer-column p, .footer-column ul { line-height: 2; margin: 0; padding: 0; list-style: none; }
         </style>
   </head>
@@ -283,15 +283,18 @@
         </nav>
 
         <!--pre メインタイトル（上の方に配置） -->
-        <div class="hero-title" style="top: 25%;">AQUA BIBLIOTHECA</div>
+        <div class="hero-title" style="top: 25%;">AQUA BIBLIOTHECA
+            <br>
+    <span style="font-size: 40%; letter-spacing: 6px; font-weight: normal; display: inline-block; margin-left: 800px; position: relative; top: -30px;">ABOVE WATER</span>
+</div>
         
         <!-- ABOUT USのすりガラスパネル（下の方に配置） -->
         <div class="about-overlay">
-            <h2>水鏡文庫について - ABOUT US</h2>
+            <h2>AQUA BIBLIOTHECAについて - ABOUT US</h2>
             <p>
                 北緯〇〇度、波間に揺れる幻の知識の塔。<br>
                 ここは世界中の「存在しなかった記憶」と「あり得たかもしれない歴史」を収蔵する水上図書館。<br>
-                満月の夜にだけ開かれるこの扉の先で、あなただけの物語を見つけてください。
+                新月の朝にだけ開かれるこの扉の先で、あなただけの物語を見つけてください。
             </p>
         </div>
 
@@ -299,7 +302,7 @@
         <div class="art-label" style="bottom: 5%; right: 3%;">水上図書館 全貌 - Overview</div>
     </div>
 
-    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('images/bg/exploreimages/library-obi-enkei.webp');">
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(61, 141, 232, 0.1), rgba(0, 0, 0, 0.4)), url('images/bg/exploreimages/library-mapforbackground.webp');">
         施設紹介
     </div>
 
@@ -309,25 +312,25 @@
             <img src="images/bg/exploreimages/library-daieturanshitu.webp" class="real-img" style="height: 450px;" alt="大閲覧室">
             <div class="art-label" style="bottom: 8%; left: 5%;">大閲覧室 - Main Hall</div>
     </div>
-    <div class="art-section-row">
-        <!-- 1列目：水中 -->
+    <!--<div class="art-section-row">
+         1列目：水中 
         <div class="art-third">
             <img src="images/bg/exploreimages/library-suityu.webp" class="real-img" style="height: 350px;" alt="水中">
             <div class="art-label" style="bottom: 8%; left: 5%;">水中閲覧席</div>
         </div>
-        <!-- 2列目：Map -->
+        <!-- 2列目：Map 
         <div class="art-third">
             <img src="images/bg/exploreimages/librarymap-nanobanana-upscayl.webp" class="real-img" style="height: 350px;" alt="Map">
             <div class="art-label" style="bottom: 8%; left: 5%;">館内マップ</div>
         </div>
-        <!-- 3列目：広いとこ -->
+        <!-- 3列目：広いとこ 
         <div class="art-third">
             <img src="images/bg/exploreimages/library-hiroi.webp" class="real-img" style="height: 350px;" alt="広いとこ">
             <div class="art-label" style="bottom: 8%; left: 5%;">深層書庫</div>
         </div>
-    </div>
+    </div>-->
 
-    <div class="blur-divider" style="background-image: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('images/bg/exploreimages/library-obi-heya.webp');">
+    <div class="blur-divider" style="background-image: linear-gradient(rgba(38, 113, 198, 0.0), rgba(0, 0, 0, 0.0)), url('images/bg/exploreimages/library-obi-heya.webp');">
         蔵書紹介
     </div>
 
@@ -335,7 +338,7 @@
     <!-- SECTION 2: 所蔵本コレクション -->
 <!-- SECTION 2: 所蔵本コレクション -->
 
-    <!-- ＝＝＝ 第1章：天文学 ＝＝＝ -->
+    <!-- ＝＝＝ 第1章：天文学 ＝＝＝ 
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/astronomy-enban.webp" class="real-img" style="height: 540px;" alt="天文学の背景">
         <div class="glass-panel">
@@ -362,7 +365,7 @@
         </div>
     </div>
 
-    <!-- ＝＝＝ 第2章：スチームパンク ＝＝＝ -->
+    <!-- ＝＝＝ 第2章：スチームパンク ＝＝＝ 
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/steam-window.webp" class="real-img" style="height: 540px;" alt="スチームパンクの背景">
         <div class="glass-panel">
@@ -388,7 +391,7 @@
         <div class="art-label" style="bottom: 10%; right: 5%;">『飛空艇機関士手帖』 Folio 32</div>
     </div>
 
-    <!-- ＝＝＝ 第3章：電脳世界 ＝＝＝ -->
+    <!-- ＝＝＝ 第3章：電脳世界 ＝＝＝ 
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/data-1.webp" class="real-img" style="height: 540px;" alt="電脳世界の背景">
         <div class="glass-panel">
@@ -415,7 +418,7 @@
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/littleprince-theplanet.webp" class="real-img" style="height: 540px;" alt="星の王子さまの背景">
         <div class="glass-panel">
-            <h3>第四の書：星の王子様</h3>
+            <h3>星の王子様</h3>
             <p>
                 バオバブの木と、たった一輪の気位の高いバラ。<br>
                 星から星へと旅をした小さな王子の、<br>
@@ -442,7 +445,7 @@
         <div class="art-label" style="bottom: 10%; left: 5%;">『星の王子様』</div>
     </div>
 
-    <!-- ＝＝＝ 第5章：湯屋街 ＝＝＝ -->
+    <!-- ＝＝＝ 第5章：湯屋街 ＝＝＝ 
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/onsen-gaikan.webp" class="real-img" style="height: 540px;" alt="湯屋街の背景">
         <div class="glass-panel">
@@ -469,7 +472,7 @@
         </div>
     </div>
 
-    <!-- ＝＝＝ 第6章：古代都市遺跡 ＝＝＝ -->
+    <!-- ＝＝＝ 第6章：古代都市遺跡 ＝＝＝ 
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/iseki-gaikan.webp" class="real-img" style="height: 540px;" alt="古代遺跡の背景">
         <div class="glass-panel">
@@ -500,7 +503,7 @@
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/ryouri-heya.webp" class="real-img" style="height: 540px;" alt="レシピ本の背景">
         <div class="glass-panel">
-            <h3>第七の書：水上図書館の秘伝調理譜</h3>
+            <h3>水上図書館の秘伝調理譜</h3>
             <p>
                 発光する香草、星の結晶、幻の果実。<br>
                 この世界には存在しない素材を用いた、<br>
@@ -522,9 +525,9 @@
     <!-- ＝＝＝ 第8章：東大写真枠 ＝＝＝ -->
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/toudai-ityou1.webp" class="real-img" style="height: 540px;" alt="東大の背景">
-
+        
         <div class="glass-panel">
-            <h3>第八の書：東京大学</h3>
+            <h3>東京大学</h3>
             <p>
                 数多の幻想書に紛れ込んだ、唯一の「現実の記録」。<br>
                 重厚なゴシック建築と黄金色のイチョウが織りなす風景は、<br>
@@ -538,7 +541,7 @@
     </div>
     <div class="art-section-row">
         <div class="art-half">
-            <img src="images/bg/exploreimages/toudai-tatekan.webp" class="real-img" style="height: 400px;" alt="銀杏並木と立て看">
+            <img src="images/bg/exploreimages/toudai-ityounamiki2.webp" class="real-img" style="height: 400px;" alt="銀杏並木と立て看">
             <div class="art-label" style="bottom: 8%; left: 5%;">『東京大学』 - 銀杏並木と立て看</div>
         </div>
         <div class="art-half">
@@ -546,7 +549,7 @@
             <div class="art-label" style="bottom: 8%; left: 5%;">『東京大学』 - サクラサク</div>
         </div>
     </div>
-    <!-- ＝＝＝ 終章：水上図書館（フィナーレ） ＝＝＝ -->
+    <!-- ＝＝＝ 終章：水上図書館（フィナーレ） ＝＝＝ 
     <div class="art-section-full dark-cover" style="height: 540px;">
         <img src="images/bg/exploreimages/library-kairou.webp" class="real-img" style="height: 540px;" alt="水上図書館の背景">
         <div class="glass-panel">
@@ -559,7 +562,7 @@
         </div>
     </div>
     
-    <!-- フィナーレを飾る大判画像 -->
+    <!-- フィナーレを飾る大判画像 
     <div class="art-section-full">
         <img src="images/bg/exploreimages/library-unkai.webp" class="real-img" style="height: 550px;" alt="深淵の大書庫">
     </div>
@@ -571,11 +574,11 @@
     <!-- =========================================
          【フッター】
          ========================================= -->
-    <footer class="site-footer" style="background-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.75)), url('images/kamereon-stainedglass.webp');background-position: top center;">
+    <footer class="site-footer" style="background-image: linear-gradient(rgba(197, 213, 246, 0.75), rgba(209, 211, 217, 0.75)), url('images/kamereon-stainedglass.webp');background-position: top center;">
         <div class="footer-column">
             <h3>Library Calendar</h3>
             <p>
-               Closed all month: <br>No Full Moon This Month
+               Closed all month: <br>No New Moon This Month
             </p>
         </div>
         <div class="footer-column" style="text-align: right;">
