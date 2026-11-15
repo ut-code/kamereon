@@ -1088,7 +1088,7 @@ export default function Hide({ siteId }) {
         site: siteId,
         name,
         ...toData(main),
-        decoys: [],
+       /* decoys: [],*/
       });
       setSavedAt(submittedAt);
       setSavedId(id);
