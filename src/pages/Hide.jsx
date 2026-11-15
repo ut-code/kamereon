@@ -10,6 +10,7 @@ import {
 import { api } from "../api.js";
 import { Check, FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from "../components/ui.jsx";
 import "./Hide.css";
+import { getRandomName } from "../userNames.js";
 
 const TOOLS = [
   {
@@ -28,7 +29,7 @@ const TOOLS = [
 
 // 手足の可動域を収めつつ、カメレオンと周囲の背景に寄った表示にする。
 const JOINT_VIEW_SIZE = 160;
-const HIDE_TIME_LIMIT_SEC = 5 * 60;
+const HIDE_TIME_LIMIT_SEC = 3 * 60;
 const formatTime = (seconds) => {
   const whole = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
@@ -299,7 +300,8 @@ export default function Hide({ siteId }) {
   const [splashes, setSplashes] = useState([]);
   const [carried, setCarried] = useState(null);
   const [outline, setOutline] = useState(true);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(() => getRandomName("hide"));
+  const [showSaveModal, setShowSaveModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState(null);
   const [error, setError] = useState("");
@@ -1106,8 +1108,8 @@ export default function Hide({ siteId }) {
     try {
       const main = figs.find((f) => f.key === MAIN);
       const { id } = await api.createChameleon({
-        site: siteId,
-        name,
+  site: siteId,
+  name: name.trim(),
         ...toData(main),
         decoys: figs.filter((f) => f.decoy).map(toData),
       });
@@ -1153,16 +1155,8 @@ export default function Hide({ siteId }) {
               <Icon name="redo" />
             </Tab>
             <span className="b-tools__sep" aria-hidden="true" />
-            <input
-              type="text"
-              className="b-input"
-              aria-label="カメレオンの名前"
-              placeholder="カメレオンの名前"
-              maxLength={20}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <Sticker size="s" color="hide" tilt={-2} disabled={!figs.length || saving || Boolean(savedId)} onClick={save}>
+          
+           <Sticker size="s" color="hide" tilt={-2} disabled={!figs.length || saving || Boolean(savedId)} onClick={() => setShowSaveModal(true)}>
               {saving ? "保存中…" : "ここに隠れる！"}
             </Sticker>
           </div>
@@ -1513,7 +1507,7 @@ export default function Hide({ siteId }) {
             人型のカメレオンをページのどこかに置き、背景になじむように色を塗って隠しましょう。
             「ここに隠れる！」を押すと保存され、見つけるモードで他の人に探してもらえます。
           </p>
-          <p>隠す制限時間は5分です。時間が来ると編集が終了し、その時点の状態で保存できます。</p>
+          <p>隠す制限時間は{HIDE_TIME_LIMIT_SEC / 60}分です。時間が来ると編集が終了し、その時点の状態で保存できます。</p>
           <h3>ツール</h3>
           <dl className="hide-help-tools">
             {TOOLS.map((t, index) => (
@@ -1536,23 +1530,50 @@ export default function Hide({ siteId }) {
         </Modal>
       )}
 
-      {timeUp && !savedId && (
-        <Modal tapes={["hide", null]} className="hide-timeup" aria-labelledby="hide-timeup-title">
-          <h2 id="hide-timeup-title" className="b-modal__title">タイムアップ！</h2>
-          <p>5分が経過したので、編集を終了しました。<br />今の色・ポーズ・場所で隠せます。</p>
-          <input type="text" className="b-input hide-timeup-name" aria-label="カメレオンの名前" placeholder="カメレオンの名前"
-            maxLength={20} value={name} onChange={(e) => setName(e.target.value)} disabled={saving} autoFocus />
+      {/* タイムアップ時、または手動で「ここに隠れる」を押したときの名前入力モーダル */}
+      {(timeUp || showSaveModal) && !savedId && (
+        <Modal 
+          tapes={["hide", null]} 
+          className="hide-timeup" 
+          aria-labelledby="hide-timeup-title"
+          /* 手動保存のときだけ、モーダルの外側をクリックして閉じられるようにする */
+          onBackdropClick={() => !timeUp && setShowSaveModal(false)}
+        >
+          <h2 id="hide-timeup-title" className="b-modal__title">
+            {timeUp ? "タイムアップ！" : "隠れる準備完了！"}
+          </h2>
+          <p>
+            {timeUp 
+              ? <>3分が経過したので、編集を終了しました。<br />今の色・ポーズ・場所で隠せます。</> 
+              : <>この場所で隠れますか？<br />ランキングに登録する名前を決めてください。</>
+            }
+          </p>
+          <input type="text" className="b-input hide-timeup-name" aria-label="カメレオンの名前"
+  maxLength={20} value={name} onChange={(e) => setName(e.target.value)}
+  onFocus={(e) => e.target.select()}
+  onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !saving) save(); }}
+  disabled={saving} autoFocus />
           {error && <p className="b-alert" role="alert">{error}</p>}
           <div className="b-modal__actions">
-            <Sticker as="a" href="#/" tilt={2}>ホームへ</Sticker>
-            <Sticker as="a" href={`#/hide?site=${siteId}&t=${Date.now()}`} tilt={-1.5}>もう一度</Sticker>
-            <Sticker color="hide" tilt={-2} onClick={save} disabled={saving}>
+            {/* 手動保存のときだけ「戻る」ボタンを表示 */}
+            {!timeUp && (
+              <Sticker tilt={2} onClick={() => setShowSaveModal(false)}>戻る</Sticker>
+            )}
+            {/* タイムアップのときだけ「ホームへ」「もう一度」を表示 */}
+            {timeUp && (
+              <>
+                <Sticker as="a" href="#/" tilt={2}>ホームへ</Sticker>
+                <Sticker as="a" href={`#/hide?site=${siteId}&t=${Date.now()}`} tilt={-1.5}>もう一度</Sticker>
+              </>
+            )}
+            
+            {/* 空欄 (!name.trim()) の時は保存ボタンを押せないようにする */}
+            <Sticker color="hide" tilt={-2} onClick={save} disabled={saving || !name.trim()}>
               {saving ? "保存中…" : "この状態で隠す"}
             </Sticker>
           </div>
         </Modal>
       )}
-
       {savedId && (
         <Modal tapes={["hide", "find"]} aria-labelledby="hide-saved-title">
           <div className="hide-saved-head">
@@ -1560,7 +1581,7 @@ export default function Hide({ siteId }) {
             <h2 id="hide-saved-title" className="b-modal__title">隠れました！</h2>
           </div>
           <p>
-            「{name.trim() || "ななしのカメレオン"}」がページに潜みました。
+            「{name.trim()}」がページに潜みました。
             {decoyCount > 0 && (
               <>
                 <br />

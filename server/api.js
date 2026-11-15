@@ -35,6 +35,21 @@ const validFigure = (figure) => {
 const validScore = (score) =>
   Number.isFinite(score) && score >= 0 && Number.isSafeInteger(Math.round(score));
 
+// 20文字以内に収めたまま、被っていたら末尾に連番を付ける
+async function uniqueChameleonName(db, base) {
+  const exists = async (name) =>
+    Boolean(await db.prepare('SELECT 1 AS x FROM chameleons WHERE name = ? LIMIT 1').bind(name).first());
+
+  if (!(await exists(base))) return base;
+  for (let i = 2; i <= 200; i++) {
+    const suffix = String(i);
+    const candidate = base.slice(0, 20 - suffix.length) + suffix;
+    if (!(await exists(candidate))) return candidate;
+  }
+  // 万一200人以上被ったときの保険
+  return base.slice(0, 14) + crypto.randomUUID().slice(0, 6);
+}
+
 export function createApi(db) {
   const api = express.Router();
   api.use(express.json({ limit: '2mb' }));
@@ -82,7 +97,9 @@ export function createApi(db) {
       h: Math.round(decoy.h),
       image: decoy.image,
     }));
-    const cleanName = String(name ?? '').trim().slice(0, 20) || 'ななしのカメレオン';
+    const baseName = String(name ?? '').trim().slice(0, 20);
+if (!baseName) return res.status(400).json({ error: 'ゲームに表示する名前を入力してください' });
+const cleanName = await uniqueChameleonName(db, baseName);
     const id = crypto.randomUUID();
     await db.prepare(`
       INSERT INTO chameleons (id, site, name, x, y, w, h, image, decoys, created_at)
@@ -133,8 +150,8 @@ export function createApi(db) {
     if (!validScore(score)) return res.status(400).json({ error: 'invalid score' });
     const elapsed = (Date.now() - Date.parse(game.started_at)) / 1000;
     if (elapsed > TIME_LIMIT_SEC + 10) return res.status(409).json({ error: 'time over' });
-    const cleanPlayerName = String(playerName ?? '').trim().slice(0, 20)
-      || game.player_name || 'ななしのハンター';
+    const cleanPlayerName = String(playerName ?? '').trim().slice(0, 20) || game.player_name;
+if (!cleanPlayerName) return res.status(400).json({ error: 'ゲームに表示するなまえを入力してください' });
 
     // 判定も更新と同じトランザクションで行い、同時報告と再送の二重計上を防ぐ。
     const results = await db.batch([
@@ -179,9 +196,11 @@ export function createApi(db) {
 
   api.get('/rankings/finder', route(async (req, res) => {
     const { results } = await db.prepare(`
-      SELECT id, COALESCE(NULLIF(player_name, ''), 'ななしのハンター') AS player_name,
-             CAST(score AS INTEGER) AS score, started_at
-      FROM games WHERE CAST(score AS INTEGER) > 0 ORDER BY score DESC LIMIT 10
+      SSELECT id, player_name, MAX(CAST(score AS INTEGER)) AS score, started_at
+FROM games
+WHERE player_name IS NOT NULL AND player_name != '' AND CAST(score AS INTEGER) > 0
+GROUP BY player_name
+ORDER BY score DESC LIMIT 10
     `).all();
     res.json(results);
   }));
