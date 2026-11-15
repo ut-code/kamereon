@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import SiteStage from '../components/SiteStage.jsx';
 import Icon from '../components/Icon.jsx';
 import { FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from '../components/ui.jsx';
@@ -122,7 +122,13 @@ export default function Find({ siteId }) {
   const aimFrameRef = useRef(null);
   const [totalScore, setTotalScore] = useState(0);
   const activePlayerNameRef = useRef('ななしのハンター');
+  const playerNameInputRef = useRef(null);
 
+  useLayoutEffect(() => {
+  if (phase === 'intro') {
+    playerNameInputRef.current?.select();
+  }
+}, [phase]);
   // マウス移動・スクロールのたびに照準位置を更新する（1フレームに1回まで）
   const scheduleAim = () => {
     if (aimFrameRef.current != null) return;
@@ -463,8 +469,9 @@ export default function Find({ siteId }) {
           </div>
           <p className="b-modal__note">クリックするたびに{CLICK_COOLDOWN_MS / 1000}秒間はクリックできません（当たり・外れ・デコイのどれでも）</p>
           <label className="b-player-name">
-  ハンターの名前
+  ランキングに登録する名前（変更できます）
   <input
+    ref={playerNameInputRef}
     className="b-input"
     type="text"
     maxLength={20}

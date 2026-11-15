@@ -196,7 +196,7 @@ if (!cleanPlayerName) return res.status(400).json({ error: 'ゲームに表示�
 
   api.get('/rankings/finder', route(async (req, res) => {
     const { results } = await db.prepare(`
-      SSELECT id, player_name, MAX(CAST(score AS INTEGER)) AS score, started_at
+      SELECT id, player_name, MAX(CAST(score AS INTEGER)) AS score, started_at
 FROM games
 WHERE player_name IS NOT NULL AND player_name != '' AND CAST(score AS INTEGER) > 0
 GROUP BY player_name
