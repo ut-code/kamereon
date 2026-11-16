@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import SiteStage from '../components/SiteStage.jsx';
 import Icon from '../components/Icon.jsx';
 import { FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from '../components/ui.jsx';
@@ -14,9 +14,11 @@ const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。Find.css の
 const SHADOW_MIN_OFFSET = 6; // 影のずれの最小値 (ページpx)
 const SHADOW_MAX_EXTRA = 12; // 光源から離れるほど増える影のずれの上限 (ページpx)
 const SHADOW_DIST_RATIO = 0.2; // 光源からの距離に対する影のずれの割合
+const TILE = 256; // カメレオンを描く canvas タイルの1辺 (ページpx)
+const TILE_SCALE = 2; // タイルの解像度の倍率（カメレオン画像の解像度 FIG_SCALE と同じ）
 
-// 画像の不透明ピクセルをクリックしたかどうかを判定するためのマスクを作る
-async function loadAlphaMask(src) {
+// カメレオンの画像を読み込み、不透明ピクセルをクリックしたかどうかを判定するためのマスクも作る
+async function loadFigure(src) {
   const img = new Image();
   img.src = src;
   await img.decode();
@@ -25,7 +27,59 @@ async function loadAlphaMask(src) {
   canvas.height = img.naturalHeight;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(img, 0, 0);
-  return { width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height).data };
+  return { img, mask: { width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height).data } };
+}
+
+// まだ見つかっていないカメレオンとデコイを、ページ全体に敷き詰めた canvas タイルに描く。
+// 1体ずつ <img> にすると開発者ツールで要素を選ぶだけで位置が分かってしまうため、
+// どのタイルも同じ大きさ・同じ属性にして、要素からは場所が分からないようにする。
+// 何も描かないタイルは getContext しないので、描画用のメモリも確保されない。
+function FigureTiles({ width, height, figures }) {
+  const cols = Math.ceil(width / TILE);
+  const rows = Math.ceil(height / TILE);
+  const tilesRef = useRef([]);
+  const drawnRef = useRef(new Set());
+
+  useLayoutEffect(() => {
+    const next = new Map();
+    for (const f of figures) {
+      const c0 = Math.max(0, Math.floor(f.x / TILE)), c1 = Math.min(cols - 1, Math.floor((f.x + f.w) / TILE));
+      const r0 = Math.max(0, Math.floor(f.y / TILE)), r1 = Math.min(rows - 1, Math.floor((f.y + f.h) / TILE));
+      for (let r = r0; r <= r1; r++) {
+        for (let c = c0; c <= c1; c++) {
+          const i = r * cols + c;
+          if (!next.has(i)) next.set(i, []);
+          next.get(i).push(f);
+        }
+      }
+    }
+    for (const i of new Set([...drawnRef.current, ...next.keys()])) {
+      const canvas = tilesRef.current[i];
+      if (!canvas) continue;
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const left = (i % cols) * TILE, top = Math.floor(i / cols) * TILE;
+      ctx.setTransform(TILE_SCALE, 0, 0, TILE_SCALE, -left * TILE_SCALE, -top * TILE_SCALE);
+      ctx.imageSmoothingQuality = 'high';
+      for (const f of next.get(i) ?? []) ctx.drawImage(f.img, f.x, f.y, f.w, f.h);
+    }
+    drawnRef.current = new Set(next.keys());
+  }, [figures, cols, rows]);
+
+  return (
+    <div className="figure-tiles" aria-hidden="true">
+      {Array.from({ length: cols * rows }, (_, i) => (
+        <canvas
+          key={i}
+          ref={(el) => { tilesRef.current[i] = el; }}
+          width={TILE * TILE_SCALE}
+          height={TILE * TILE_SCALE}
+          style={{ left: (i % cols) * TILE, top: Math.floor(i / cols) * TILE }}
+        />
+      ))}
+    </div>
+  );
 }
 
 function hits(c, mask, px, py) {
@@ -62,10 +116,10 @@ function FlashlightShadow({ obj, aim, radius }) {
   const whitedy = dy * 1.4;
 
   return (
-    <>
+    <div className="shadow-slot" style={{ left: obj.x, top: obj.y, width: obj.w, height: obj.h }}>
     <img
       className="flashlight-shadow"
-      src={obj.image}
+      src={obj.img.src}
       alt=""
       draggable={false}
       style={{
@@ -78,7 +132,7 @@ function FlashlightShadow({ obj, aim, radius }) {
     />
     <img
       className="flashlight-shadow"
-      src={obj.image}
+      src={obj.img.src}
       alt=""
       draggable={false}
       style={{
@@ -89,7 +143,7 @@ function FlashlightShadow({ obj, aim, radius }) {
         filter: 'brightness(0) invert(1) drop-shadow(0px 0px 4px rgba(255, 255, 255, 1))'
       }}
     />
-    </>
+    </div>
   );
 }
 
@@ -98,6 +152,7 @@ const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).pad
 export default function Find({ siteId }) {
   const stageRef = useRef(null);
   const masksRef = useRef({});
+  const imagesRef = useRef({});
   const pointerPos = useRef({ x: -9999, y: -9999 });
   const hideScoresRef = useRef({});
   const savedGameRef = useRef(null);
@@ -170,8 +225,9 @@ export default function Find({ siteId }) {
         (c.decoys ?? []).map((d, i) => ({ ...d, key: `${c.id}:${i}`, owner: c.name })),
       );
       const targets = [...g.chameleons.map((c) => [c.id, c.image]), ...decoys.map((d) => [d.key, d.image])];
-      const masks = await Promise.all(targets.map(([, image]) => loadAlphaMask(image)));
-      masksRef.current = Object.fromEntries(targets.map(([key], i) => [key, masks[i]]));
+      const loaded = await Promise.all(targets.map(([, image]) => loadFigure(image)));
+      masksRef.current = Object.fromEntries(targets.map(([key], i) => [key, loaded[i].mask]));
+      imagesRef.current = Object.fromEntries(targets.map(([key], i) => [key, loaded[i].img]));
       setGame({ ...g, decoys });
       setDeadline(Date.now() + g.timeLimit * 1000);
       setNow(Date.now());
@@ -267,6 +323,15 @@ export default function Find({ siteId }) {
   const over = phase === 'over';
   const showShadow = phase === 'playing' && aim;
   const shadowRadius = RETICLE_RADIUS_PX / zoom;
+
+  // まだ見つかっていない（＝場所を知られてはいけない）カメレオンとデコイ。canvas タイルに描く
+  const secretFigures = useMemo(() => {
+    if (phase !== 'playing' || !game) return [];
+    return [
+      ...game.chameleons.filter((c) => !found.includes(c.id)).map((c) => ({ ...c, key: c.id })),
+      ...game.decoys.filter((d) => !tripped.includes(d.key)),
+    ].map((f) => ({ key: f.key, x: f.x, y: f.y, w: f.w, h: f.h, img: imagesRef.current[f.key] }));
+  }, [phase, game, found, tripped]);
 
   const onMouseMove = (e) => {
     if (stageRef.current) {
@@ -405,19 +470,24 @@ export default function Find({ siteId }) {
           className: `stage-overlay ${phase === 'playing' ? 'seeking' : ''}`,
         }}
       >
+        {/* 照準に照らされたときの影。照準と重なっている間だけ出す（画面に見えている手がかりと同じ） */}
+        {showShadow && secretFigures.map((f) => (
+          <FlashlightShadow key={f.key} obj={f} aim={aim} radius={shadowRadius} />
+        ))}
+        {game && (
+          <FigureTiles width={stageRef.current.size.width} height={stageRef.current.size.height} figures={secretFigures} />
+        )}
+        {/* 見つけた・終了後に明かしたものだけを要素として出す（輪と名前の札） */}
         {game?.chameleons.map((c) => {
           const isFound = found.includes(c.id);
           const isAnimating = animatingFound.includes(c.id);
-          if (phase === 'playing' && isFound && !isAnimating && !showFound) {
-            return null;
-          }
+          if (!over && !(isFound && (isAnimating || showFound))) return null;
           return (
             <div
               key={c.id}
               className={`chameleon-slot ${isFound ? 'found' : ''} ${over && !isFound ? 'missed' : ''} ${isAnimating ? 'blinking' : ''}`}
               style={{ left: c.x, top: c.y, width: c.w, height: c.h }}
             >
-              {showShadow && !isFound && <FlashlightShadow obj={c} aim={aim} radius={shadowRadius} />}
               <img src={c.image} alt="" draggable={false} />
               {(isFound || over) && <span className="slot-label">{c.name}</span>}
             </div>
@@ -425,15 +495,15 @@ export default function Find({ siteId }) {
         })}
         {game?.decoys.map((d) => {
           const isTripped = tripped.includes(d.key);
+          if (!over && !isTripped) return null;
           return (
             <div
               key={d.key}
               className={`chameleon-slot decoy ${isTripped ? 'tripped' : ''} ${over ? 'exposed' : ''}`}
               style={{ left: d.x, top: d.y, width: d.w, height: d.h }}
             >
-              {showShadow && !isTripped && <FlashlightShadow obj={d} aim={aim} radius={shadowRadius} />}
               <img src={d.image} alt="" draggable={false} />
-              {(isTripped || over) && <span className="slot-label">デコイ（{d.owner}）</span>}
+              <span className="slot-label">デコイ（{d.owner}）</span>
             </div>
           );
         })}
