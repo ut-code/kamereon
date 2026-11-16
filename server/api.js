@@ -24,9 +24,15 @@ const toChameleon = (row, { withDecoys = false } = {}) => ({
   createdAt: row.created_at,
 });
 
+// 位置 (x, y) と大きさ (w, h) はページ画像に対する相対座標 (0〜1)。
+// ブラウザや端末の違いで表示サイズが変わっても、画像上の同じ場所を指す。
+const isRatio = (v) => Number.isFinite(v) && v >= 0 && v <= 1;
+const validRect = ({ x, y, w, h }) =>
+  [x, y, w, h].every(isRatio) && w > 0 && h > 0 && x + w <= 1.001 && y + h <= 1.001;
+
 const validFigure = (figure) => {
-  const { x, y, w, h, image } = figure ?? {};
-  return [x, y, w, h].every(Number.isFinite) &&
+  const { image } = figure ?? {};
+  return validRect(figure ?? {}) &&
     typeof image === 'string' &&
     image.startsWith('data:image/png;base64,') &&
     image.length <= MAX_IMAGE_BYTES;
@@ -70,7 +76,7 @@ export function createApi(db) {
     if (typeof site !== 'string' || !Object.hasOwn(SITES, site)) {
       return res.status(400).json({ error: 'unknown site' });
     }
-    if (![x, y, w, h].every(Number.isFinite)) return res.status(400).json({ error: 'invalid position' });
+    if (!validRect({ x, y, w, h })) return res.status(400).json({ error: 'invalid position' });
     if (!validFigure({ x, y, w, h, image })) return res.status(400).json({ error: 'invalid image' });
     if (!Array.isArray(decoys) || decoys.length > MAX_DECOYS || !decoys.every(validFigure)) {
       return res.status(400).json({ error: 'invalid decoys' });
@@ -78,8 +84,8 @@ export function createApi(db) {
     const cleanDecoys = decoys.map((decoy) => ({
       x: decoy.x,
       y: decoy.y,
-      w: Math.round(decoy.w),
-      h: Math.round(decoy.h),
+      w: decoy.w,
+      h: decoy.h,
       image: decoy.image,
     }));
     const cleanName = String(name ?? '').trim().slice(0, 20) || 'ななしのカメレオン';
@@ -87,7 +93,7 @@ export function createApi(db) {
     await db.prepare(`
       INSERT INTO chameleons (id, site, name, x, y, w, h, image, decoys, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, site, cleanName, x, y, Math.round(w), Math.round(h), image,
+    `).bind(id, site, cleanName, x, y, w, h, image,
       JSON.stringify(cleanDecoys), new Date().toISOString()).run();
     res.status(201).json({ id });
   }));

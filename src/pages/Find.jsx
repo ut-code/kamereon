@@ -143,7 +143,16 @@ export default function Find({ siteId }) {
       const finalPlayerName = playerName.trim() || 'ななしのハンター';
       activePlayerNameRef.current = finalPlayerName;
 
-      const g = await api.startGame(siteId, []);
+      const started = await api.startGame(siteId, []);
+      // 保存されている位置・大きさはページ画像に対する相対座標なので、表示中のページ座標 (px) に直す
+      const { fromRelative } = stageRef.current;
+      const g = {
+        ...started,
+        chameleons: started.chameleons.map((c) => ({
+          ...fromRelative(c),
+          decoys: (c.decoys ?? []).map(fromRelative),
+        })),
+      };
       if (g.chameleons.length === 0) {
         setPhase('empty');
         return;

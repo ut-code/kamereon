@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import SiteStage from "../components/SiteStage.jsx";
+import { siteImageUrl } from "../../server/sites.js";
 import Icon from "../components/Icon.jsx";
 import { POSES, ROTATE_STEP } from "../figure.js";
 import { hexToRgb } from "../painter.js";
@@ -945,8 +946,8 @@ export default function Hide({ siteId }) {
     };
     const syncBackground = () => {
       const { width, height } = stageRef.current.size;
-      if (background.width !== String(width)) background.width = String(width);
-      if (background.height !== String(height)) background.height = String(height);
+      background.style.width = `${width}px`;
+      background.style.height = `${height}px`;
       const f = activeRef.current;
       const bounds = figureBounds(f);
       // どのツールでも同じ倍率・胴体の原点を使い、切り替え時に背景を動かさない。
@@ -1093,13 +1094,11 @@ export default function Hide({ siteId }) {
     onPointerUp();
     setSaving(true);
     setError("");
+    // 位置と大きさは、ページ画像に対する相対座標 (0〜1) で保存する
     const toData = (f) => {
       const { w, h } = figureBounds(f);
       return {
-        x: f.x,
-        y: f.y,
-        w,
-        h,
+        ...stageRef.current.toRelative({ x: f.x, y: f.y, w, h }),
         image: painters.current[f.key].toDataURL(),
       };
     };
@@ -1370,15 +1369,13 @@ export default function Hide({ siteId }) {
             </div>
 
             <div className="hide-paint-surface" ref={paintSurfaceRef}>
-              <iframe
+              <img
                 ref={paintBackgroundRef}
                 className="hide-paint-background"
-                title="配置場所の背景"
-                src={`/sites/${siteId}`}
-                sandbox="allow-same-origin"
-                width={stageRef.current.size.width}
-                height={stageRef.current.size.height}
-                tabIndex={-1}
+                alt=""
+                src={siteImageUrl(siteId)}
+                style={{ width: stageRef.current.size.width, height: stageRef.current.size.height }}
+                draggable={false}
                 aria-hidden="true"
                 onLoad={() => setPaintBackgroundReady(true)}
               />

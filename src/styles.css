@@ -49,10 +49,11 @@ body {
   transform-origin: 0 0;
   background: #fff;
 }
-.stage iframe {
+.stage > img {
   display: block;
-  border: 0;
+  max-width: none;
   pointer-events: none;
+  -webkit-user-drag: none;
 }
 .stage-overlay {
   position: absolute;

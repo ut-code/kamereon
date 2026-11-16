@@ -115,9 +115,9 @@
 .b-flowhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
 .b-flowhead__group { display: flex; align-items: center; gap: 22px; }
 
-/* Webページの縮小表示（iframe を枠の幅に合わせて縮める）。縦横比は使う側で決める */
+/* Webページの縮小表示（書き出したページ画像の上端を枠の幅に合わせて表示する）。縦横比は使う側で決める */
 .b-preview { position: relative; overflow: hidden; background: var(--sub); }
-.b-preview iframe { position: absolute; top: 0; left: 0; display: block; border: 0; transform-origin: 0 0; pointer-events: none; }
+.b-preview img { position: absolute; top: 0; left: 0; display: block; width: 100%; height: auto; pointer-events: none; }
 
 /* ページ選択。ページを1枚ずつテープで貼った札にする。札全体がリンク */
 .b-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 24px; align-items: start; padding-top: 22px; }

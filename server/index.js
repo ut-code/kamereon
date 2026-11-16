@@ -9,15 +9,11 @@ const PORT = process.env.PORT ?? 3001;
 const app = express();
 
 app.use('/api', createApi(db));
-app.use('/sites', express.static(fileURLToPath(new URL('sites', import.meta.url))));
-app.get('/sites/:site', (req, res) => {
-  const site = Object.hasOwn(SITES, req.params.site) && SITES[req.params.site];
-  if (!site) return res.status(404).end();
-  const file = fileURLToPath(new URL(`sites/${site.file}`, import.meta.url));
-  if (!existsSync(file)) {
-    return res.status(503).send('snapshot がありません。`npm run snapshot` を実行してください。');
-  }
-  res.sendFile(file);
+// サイトは書き出し済みの1枚画像（server/sites/rendered/<id>.webp）として配信する
+app.use('/sites', express.static(fileURLToPath(new URL('sites/rendered', import.meta.url))));
+app.get('/sites/:id.webp', (req, res) => {
+  if (!Object.hasOwn(SITES, req.params.id)) return res.status(404).end();
+  res.status(503).send('サイト画像がありません。`npm run render` を実行してください。');
 });
 
 const dist = fileURLToPath(new URL('../dist/', import.meta.url));
