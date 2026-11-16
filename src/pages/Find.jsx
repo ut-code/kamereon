@@ -451,6 +451,9 @@ export default function Find({ siteId }) {
         ref={stageRef}
         siteId={siteId}
         zoom={zoom}
+        minZoom={1}
+        maxZoom={3}
+        onZoomChange={setZoom}
         onReady={() => setStageReady(true)}
         overlayProps={{
           onClick: onStageClick,
