@@ -6,6 +6,13 @@
 * {
   box-sizing: border-box;
 }
+/* ページ全体のスクロールバーは出さない（スクロールはできる）。出たり消えたりで画面が横にずれないようにする */
+html {
+  scrollbar-width: none;
+}
+html::-webkit-scrollbar {
+  display: none; /* Safari 18.2 より前は scrollbar-width が効かないため */
+}
 body {
   margin: 0;
 }
