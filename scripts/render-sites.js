@@ -13,6 +13,12 @@ const VIEWPORT_H = 800; // 100vh の基準（snapshot.js と合わせる）
 const MAX_SCALE = 1.5; // 拡大しても粗くなりすぎないよう、少し高い解像度で書き出す
 const WEBP_MAX = 16383; // WebP の1辺の上限 (px)
 const QUALITY = 82;
+// ホームのページ選択で使うサムネイル（<id>-thumb.webp）。ページ上端の THUMB_W × THUMB_H を縮小して書き出す。
+// 縦横比 4:5（選択カード）と 16:10（確認画面）のどちらの枠も上端から埋められる範囲にしている。
+const THUMB_W = 1280;
+const THUMB_H = 1600;
+const THUMB_PX = 480; // 書き出す幅 (px)。カードの表示幅 (最大250px程度) の約2倍
+const THUMB_QUALITY = 80;
 
 const sitesDir = new URL('../server/sites/', import.meta.url);
 const outDir = new URL('rendered/', sitesDir);
@@ -94,11 +100,18 @@ async function render(id, site) {
     format: 'webp', quality: QUALITY, captureBeyondViewport: true,
     clip: { x: 0, y: 0, width: site.width, height, scale },
   });
+  const thumb = await s('Page.captureScreenshot', {
+    format: 'webp', quality: THUMB_QUALITY, captureBeyondViewport: true,
+    clip: { x: 0, y: 0, width: THUMB_W, height: Math.min(THUMB_H, height), scale: THUMB_PX / THUMB_W },
+  });
   await send('Target.closeTarget', { targetId });
 
   const buf = Buffer.from(data, 'base64');
+  const thumbBuf = Buffer.from(thumb.data, 'base64');
   await writeFile(new URL(`${id}.webp`, outDir), buf);
-  console.log(`rendered ${id}: ${site.width}x${height} (x${scale.toFixed(2)}, ${(buf.length / 1024).toFixed(0)} KB)`);
+  await writeFile(new URL(`${id}-thumb.webp`, outDir), thumbBuf);
+  console.log(`rendered ${id}: ${site.width}x${height} (x${scale.toFixed(2)}, ${(buf.length / 1024).toFixed(0)} KB)` +
+    `, thumb ${(thumbBuf.length / 1024).toFixed(0)} KB`);
 }
 
 try {

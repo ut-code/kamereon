@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { SITES, siteImageUrl } from '../../server/sites.js';
+import { SITES, siteThumbUrl } from '../../server/sites.js';
 import { Board, FigureIcon, Ground, Heading, ModeTag, Sticker, Tab, tiltStyle } from '../components/ui.jsx';
 import './Home.css';
 
@@ -40,10 +40,10 @@ function useHomeRoute() {
   return route;
 }
 
-/** Webページの縮小表示。書き出したページ画像を枠の幅に合わせて縮め、上端から見せる */
+/** Webページの縮小表示。ページ上端のサムネイル画像を枠の幅に合わせて縮め、上端から見せる */
 function SitePreview({ site, className }) {
   return <div className={`b-preview ${className ?? ''}`} aria-hidden="true">
-    <img src={siteImageUrl(site.id)} alt="" loading="lazy" draggable={false} />
+    <img src={siteThumbUrl(site.id)} alt="" loading="lazy" draggable={false} />
   </div>;
 }
 

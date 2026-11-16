@@ -44,3 +44,5 @@ export const SITES = {
 // 各サイトは scripts/render-sites.js で1枚の画像に書き出したものを表示する。
 // HTML を各ブラウザで描画するとフォントや端末の違いでレイアウトが微妙にずれ、カメレオンの位置もずれるため。
 export const siteImageUrl = (id) => `/sites/${encodeURIComponent(id)}.webp`;
+// ページ選択のプレビュー用。ページ上端 1280×1600px を幅 480px に縮小したもの
+export const siteThumbUrl = (id) => `/sites/${encodeURIComponent(id)}-thumb.webp`;
