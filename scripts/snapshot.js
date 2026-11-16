@@ -26,6 +26,9 @@ for (const [id, site] of Object.entries(SITES)) {
 
   html = html.replace(/<script\b[\s\S]*?<\/script>/gi, '');
   html = html.replace(/loading="lazy"/g, 'loading="eager"');
+  // utcode の「未来のソフトウェア」は、スクロールで見えたときにスクリプトが data-highlighted を付けて白い背景を出す。
+  // スクリプトを除くと背景が出ず黒地に黒文字で見えなくなるので、最初から付けておく
+  html = html.replace(/<span id="text-future-software"/, '<span id="text-future-software" data-highlighted');
   html = html.replace(/<head>/i, `<head><base href="${site.url}">`);
   const css = `
     html, body { overflow: hidden !important; }
