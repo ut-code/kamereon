@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 紫（tokens.css の bg）の角丸の札に、白い人型（src/components/ui.jsx の figurePath）を置いたアイコン -->
+  <rect width="64" height="64" rx="14" fill="#6C3FD1"/>
+  <path transform="translate(16.2 2.4) scale(0.36)" fill="#FFFFFF" stroke="#2A1650" stroke-width="5" stroke-linejoin="round" paint-order="stroke"
+    d="M32 4H56V28H62V40L70 92H60L58 60V88H62V166H48V96H40V166H26V88H30V60L28 92H18L26 40V28H32Z"/>
+</svg>
