@@ -51,8 +51,11 @@ const SiteStage = forwardRef(function SiteStage({ siteId, zoom = 1, onReady, ove
     size: { width, height },
   }), [zoom, width, height]);
 
-  const handleLoad = (e) => {
+  const handleLoad = async (e) => {
     const img = e.currentTarget;
+    // 画像全体の展開（デコード）が終わってから準備完了にする。
+    // 大きな画像は展開が後回しになり、スクロール中にカメレオンだけ先に見えてしまうため。
+    await img.decode().catch(() => {});
     // 表示幅は固定し、高さは画像の縦横比から決める
     setHeight((width * img.naturalHeight) / img.naturalWidth);
     setLoaded(true);
@@ -91,6 +94,8 @@ const SiteStage = forwardRef(function SiteStage({ siteId, zoom = 1, onReady, ove
             width={width}
             height={height || undefined}
             draggable={false}
+            // 展開を後回しにせず、上に重なるカメレオンと同時に描かせる
+            decoding="sync"
             onLoad={handleLoad}
             onError={() => setFailed(true)}
           />
