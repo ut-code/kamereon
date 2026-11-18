@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS chameleons (
   w INTEGER NOT NULL,
   h INTEGER NOT NULL,
   image TEXT NOT NULL,
-  decoys TEXT NOT NULL DEFAULT '[]',
+  /*decoys TEXT NOT NULL DEFAULT '[]',*/
   searched INTEGER NOT NULL DEFAULT 0,
   found INTEGER NOT NULL DEFAULT 0,
   total_hide_score REAL NOT NULL DEFAULT 0,
