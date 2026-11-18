@@ -11,7 +11,8 @@
     "db:migrate:local": "wrangler d1 migrations apply kamereon-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply kamereon-db --remote",
     "deploy": "npm run build && wrangler deploy",
-    "snapshot": "node scripts/snapshot.js"
+    "snapshot": "node scripts/snapshot.js",
+    "render": "node scripts/render-sites.js"
   },
   "dependencies": {
     "express": "^4.21.2",

@@ -1,20 +1,23 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { SITES } from '../../server/sites.js';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { SITES, siteImageUrl } from '../../server/sites.js';
 
-const MIN_HEIGHT = 800;
+// 対象のWebページを書き出した1枚の画像として幅 site.width で表示し、その上にカメレオン用のレイヤーを重ねる。
+// スクロールは外側の div が担当するので、画面上のカメレオンの座標 = 画像上の座標 (px) になる。
+// 保存するときは画像に対する相対座標 (0〜1) にするので、toRelative / fromRelative で変換する。
+// onZoomChange を渡すと、トラックパッドのピンチ（と Ctrl+ホイール）で minZoom〜maxZoom の範囲で拡大・縮小できる。
+const PINCH_SPEED = 0.01; // ピンチ1回分の deltaY に対する拡大率の変化の速さ
 
-// 対象のWebページを「ページ全体の高さ」の iframe として表示し、その上にカメレオン用のレイヤーを重ねる。
-// スクロールは外側の div が担当するので、カメレオンの座標 = ページ上の座標 (px) になる。
-const SiteStage = forwardRef(function SiteStage({ siteId, zoom = 1, onReady, overlayProps, children }, ref) {
+const SiteStage = forwardRef(function SiteStage({
+  siteId, zoom = 1, minZoom = 1, maxZoom = 3, onZoomChange, onReady, overlayProps, children,
+}, ref) {
   const site = SITES[siteId];
   const scrollRef = useRef(null);
+  const sizerRef = useRef(null);
   const overlayRef = useRef(null);
-  const iframeRef = useRef(null);
-  const observerRef = useRef(null);
-  const [height, setHeight] = useState(MIN_HEIGHT);
+  const [height, setHeight] = useState(0);
   const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => () => observerRef.current?.disconnect(), []);
+  const [failed, setFailed] = useState(false);
+  const width = site?.width ?? 0;
 
   useImperativeHandle(ref, () => ({
     // クライアント座標 → ページ座標
@@ -48,76 +51,136 @@ const SiteStage = forwardRef(function SiteStage({ siteId, zoom = 1, onReady, ove
       const el = scrollRef.current;
       el.scrollTo({ left: x * zoom - el.clientWidth / 2, top: y * zoom - el.clientHeight / 2, behavior });
     },
-    size: { width: site.width, height },
-  }));
+    // ページ座標 (px) の {x, y, w, h} ⇔ 画像に対する相対座標 (0〜1)
+    toRelative: (r) => ({ ...r, x: r.x / width, y: r.y / height, w: r.w / width, h: r.h / height }),
+    fromRelative: (r) => ({ ...r, x: r.x * width, y: r.y * height, w: r.w * width, h: r.h * height }),
+    size: { width, height },
+  }), [zoom, width, height]);
 
-  const handleLoad = () => {
-    const doc = iframeRef.current?.contentDocument;
-    if (!doc) return;
-    const measure = () => setHeight(Math.max(MIN_HEIGHT, doc.documentElement.scrollHeight));
-    measure();
-    observerRef.current?.disconnect();
-    observerRef.current = new ResizeObserver(measure);
-    observerRef.current.observe(doc.body);
+  const handleLoad = async (e) => {
+    const img = e.currentTarget;
+    // 画像全体の展開（デコード）が終わってから準備完了にする。
+    // 大きな画像は展開が後回しになり、スクロール中にカメレオンだけ先に見えてしまうため。
+    await img.decode().catch(() => {});
+    // 表示幅は固定し、高さは画像の縦横比から決める
+    setHeight((width * img.naturalHeight) / img.naturalWidth);
     setLoaded(true);
-    onReady?.();
   };
 
-  // ズーム変更時、見ている中心がずれないようにスクロール位置を補正する
+  // 高さが決まって ref の size が更新されてから準備完了を知らせる
+  useEffect(() => {
+    if (loaded) onReady?.();
+  }, [loaded]);
+
+  // ズーム変更時、基準点（ピンチなら指の位置、それ以外は画面の中心）の下にあるページ上の点が動かないようにスクロール位置を補正する
   const prevZoom = useRef(zoom);
-const anchorRef = useRef(null); // 最後のマウス位置（スクロール領域内の座標）
+  const prevOffset = useRef({ left: 0, top: 0 }); // ページが画面より狭いときの中央寄せの余白
+  const anchorRef = useRef(null); // スクロール領域内の基準点 (px)。null なら中心
+  // 最後のマウス位置を基準点にする（スライダーやキー操作で倍率を変えたときも、カーソルの下を動かさない）
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const track = (e) => {
+      const r = el.getBoundingClientRect();
+      anchorRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    el.addEventListener('pointermove', track);
+    el.addEventListener('wheel', track, { passive: true });
+    return () => {
+      el.removeEventListener('pointermove', track);
+      el.removeEventListener('wheel', track);
+    };
+  }, [site]);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const sizer = sizerRef.current;
+    if (!el || !sizer) return;
+    const ratio = zoom / prevZoom.current;
+    const offset = { left: sizer.offsetLeft, top: sizer.offsetTop };
+    if (ratio !== 1) {
+      const ax = anchorRef.current?.x ?? el.clientWidth / 2;
+      const ay = anchorRef.current?.y ?? el.clientHeight / 2;
+      el.scrollLeft = (el.scrollLeft + ax - prevOffset.current.left) * ratio + offset.left - ax;
+      el.scrollTop = (el.scrollTop + ay - prevOffset.current.top) * ratio + offset.top - ay;
+    }
+    anchorRef.current = null;
+    prevZoom.current = zoom;
+    prevOffset.current = offset;
+  }, [zoom]);
 
-useEffect(() => {
-  const el = scrollRef.current;
-  const track = (e) => {
-    const r = el.getBoundingClientRect();
-    anchorRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-  el.addEventListener("pointermove", track);
-  el.addEventListener("wheel", track, { passive: true });
-  return () => {
-    el.removeEventListener("pointermove", track);
-    el.removeEventListener("wheel", track);
-  };
-}, []);
-
-useEffect(() => {
-  const el = scrollRef.current;
-  const ratio = zoom / prevZoom.current;
-  if (ratio !== 1) {
-    // カーソルがあればその位置、なければ画面中心を固定点にする
-    const ax = anchorRef.current?.x ?? el.clientWidth / 2;
-    const ay = anchorRef.current?.y ?? el.clientHeight / 2;
-    el.scrollLeft = (el.scrollLeft + ax) * ratio - ax;
-    el.scrollTop = (el.scrollTop + ay) * ratio - ay;
-  }
-  prevZoom.current = zoom;
-}, [zoom]);
+  // ピンチで拡大・縮小する。ブラウザ自体のページ拡大は止める
+  const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
+  const onZoomChangeRef = useRef(onZoomChange);
+  onZoomChangeRef.current = onZoomChange;
+  const pinchable = Boolean(onZoomChange);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !pinchable) return;
+    const clamp = (z) => Math.min(maxZoom, Math.max(minZoom, z));
+    const zoomAt = (next, clientX, clientY) => {
+      next = clamp(next);
+      if (next === zoomRef.current) return;
+      const rect = el.getBoundingClientRect();
+      anchorRef.current = { x: clientX - rect.left, y: clientY - rect.top };
+      zoomRef.current = next; // 再描画の前に次のイベントが来ても、続きから計算する
+      onZoomChangeRef.current?.(next);
+    };
+    // Chrome・Edge・Firefox：ピンチは ctrlKey 付きの wheel イベントになる
+    const onWheel = (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const delta = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY; // 行単位なら px に直す
+      zoomAt(zoomRef.current * Math.exp(-delta * PINCH_SPEED), e.clientX, e.clientY);
+    };
+    // Safari：独自の gesture イベントで、e.scale がピンチ開始からの倍率
+    let gestureStart = 1;
+    const onGestureStart = (e) => {
+      e.preventDefault();
+      gestureStart = zoomRef.current;
+    };
+    const onGestureChange = (e) => {
+      e.preventDefault();
+      zoomAt(gestureStart * e.scale, e.clientX, e.clientY);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('gesturestart', onGestureStart, { passive: false });
+    el.addEventListener('gesturechange', onGestureChange, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('gesturestart', onGestureStart);
+      el.removeEventListener('gesturechange', onGestureChange);
+    };
+  }, [pinchable, minZoom, maxZoom, site]);
 
   if (!site) return <div className="stage-error">サイト「{siteId}」は登録されていません。</div>;
 
   return (
     <div className="stage-scroll" ref={scrollRef}>
-      <div className="stage-sizer" style={{ width: site.width * zoom, height: height * zoom }}>
+      <div className="stage-sizer" ref={sizerRef} style={{ width: width * zoom, height: height * zoom }}>
         <div
           className="stage"
-          style={{ width: site.width, height, transform: `scale(${zoom})` }}
+          style={{ width, height, transform: `scale(${zoom})` }}
         >
-          <iframe
-            ref={iframeRef}
-            title={site.title}
-            src={`/sites/${siteId}`}
-            sandbox="allow-same-origin"
-            width={site.width}
-            height={height}
+          <img
+            src={siteImageUrl(siteId)}
+            alt={site.title}
+            width={width}
+            height={height || undefined}
+            draggable={false}
+            // 展開を後回しにせず、上に重なるカメレオンと同時に描かせる
+            decoding="sync"
             onLoad={handleLoad}
+            onError={() => setFailed(true)}
           />
           <div className="stage-overlay" ref={overlayRef} {...overlayProps}>
             {loaded && children}
           </div>
         </div>
       </div>
-      {!loaded && <div className="stage-loading">ページを読み込み中…</div>}
+      {!loaded && (
+        <div className="stage-loading">{failed ? 'ページの画像を読み込めませんでした。' : 'ページを読み込み中…'}</div>
+      )}
     </div>
   );
 });

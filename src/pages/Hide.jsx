@@ -1,14 +1,30 @@
 import { useEffect, useRef, useState } from "react";
 import SiteStage from "../components/SiteStage.jsx";
+import { siteImageUrl } from "../../server/sites.js";
 import Icon from "../components/Icon.jsx";
 import { POSES, ROTATE_STEP } from "../figure.js";
 import { hexToRgb } from "../painter.js";
 import {
-  BODY_TYPES, JointPainter, createJoints, createHangingPreview, moveJoint, getFigureBounds,
-  toFigurePoint, fromFigurePoint,
+  BODY_TYPES,
+  JointPainter,
+  createJoints,
+  createHangingPreview,
+  moveJoint,
+  getFigureBounds,
+  toFigurePoint,
+  fromFigurePoint,
 } from "./hideJoints.js";
 import { api } from "../api.js";
-import { Check, FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from "../components/ui.jsx";
+import {
+  Check,
+  FigureIcon,
+  Modal,
+  Range,
+  Sticker,
+  Tab,
+  Timer,
+  tiltStyle,
+} from "../components/ui.jsx";
 import "./Hide.css";
 import { getRandomName } from "../userNames.js";
 
@@ -24,7 +40,11 @@ const TOOLS = [
     hint: "クリックやドラッグでパシャッと塗れます。矢印キーで位置も調整できます",
   },
   { key: "eraser", label: "消しゴム", hint: "白に戻します" },
-  { key: "joints", label: "ポーズ・角度", hint: "関節をドラッグで調整し、全体の角度も変更" },
+  {
+    key: "joints",
+    label: "ポーズ・角度",
+    hint: "関節をドラッグで調整し、全体の角度も変更",
+  },
 ];
 
 // 手足の可動域を収めつつ、カメレオンと周囲の背景に寄った表示にする。
@@ -34,10 +54,17 @@ const formatTime = (seconds) => {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 };
 
-const figureBounds = (f) => getFigureBounds(f.pose, f.rotation, f.joints, f.body);
+const figureBounds = (f) =>
+  getFigureBounds(f.pose, f.rotation, f.joints, f.body);
 
 const jointLabel = (index, handle) =>
-  handle === "bend" ? (index < 2 ? "ひじ" : "ひざ") : (index < 2 ? "手首" : "足首");
+  handle === "bend"
+    ? index < 2
+      ? "ひじ"
+      : "ひざ"
+    : index < 2
+      ? "手首"
+      : "足首";
 
 function BodyPreview({ body }) {
   const canvasRef = useRef(null);
@@ -46,32 +73,59 @@ function BodyPreview({ body }) {
     const painter = new JointPainter(canvas, "stand", 0, body);
     painter.fillAll("#2A1650");
   }, [body]);
-  return <canvas ref={canvasRef} className="hide-body-preview" aria-hidden="true" />;
+  return (
+    <canvas ref={canvasRef} className="hide-body-preview" aria-hidden="true" />
+  );
 }
 
 const COLOR_SWATCHES = [
-  ["白", "#ffffff"], ["黒", "#20252b"], ["赤", "#df6270"], ["黄", "#e8c45a"],
-  ["緑", "#57a76c"], ["水色", "#76b8ab"], ["青", "#5a8ed8"], ["紫", "#a085c9"],
+  ["白", "#ffffff"],
+  ["黒", "#20252b"],
+  ["赤", "#df6270"],
+  ["黄", "#e8c45a"],
+  ["緑", "#57a76c"],
+  ["水色", "#76b8ab"],
+  ["青", "#5a8ed8"],
+  ["紫", "#a085c9"],
 ];
 
 const PALETTE_COLORS = [
   ...Array.from({ length: 24 }, (_, index) => {
-    const channel = Math.round(255 - index * 255 / 23).toString(16).padStart(2, "0");
+    const channel = Math.round(255 - (index * 255) / 23)
+      .toString(16)
+      .padStart(2, "0");
     return `#${channel.repeat(3)}`;
   }),
   ...[
-    { s: 0.2, v: 1 }, { s: 0.4, v: 1 }, { s: 0.6, v: 1 },
-    { s: 0.8, v: 1 }, { s: 1, v: 1 }, { s: 1, v: 0.8 },
-    { s: 1, v: 0.6 }, { s: 1, v: 0.4 }, { s: 1, v: 0.25 }, { s: 1, v: 0.12 },
-  ].flatMap((tone) => Array.from({ length: 24 }, (_, index) =>
-    hsvToColor({ h: index * 15, ...tone }))),
+    { s: 0.2, v: 1 },
+    { s: 0.4, v: 1 },
+    { s: 0.6, v: 1 },
+    { s: 0.8, v: 1 },
+    { s: 1, v: 1 },
+    { s: 1, v: 0.8 },
+    { s: 1, v: 0.6 },
+    { s: 1, v: 0.4 },
+    { s: 1, v: 0.25 },
+    { s: 1, v: 0.12 },
+  ].flatMap((tone) =>
+    Array.from({ length: 24 }, (_, index) =>
+      hsvToColor({ h: index * 15, ...tone }),
+    ),
+  ),
 ];
 
 function colorToHsv(color) {
   const [r, g, b] = hexToRgb(color).map((value) => value / 255);
-  const max = Math.max(r, g, b), min = Math.min(r, g, b), delta = max - min;
-  const hue = !delta ? 0 : max === r ? (g - b) / delta
-    : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+  const max = Math.max(r, g, b),
+    min = Math.min(r, g, b),
+    delta = max - min;
+  const hue = !delta
+    ? 0
+    : max === r
+      ? (g - b) / delta
+      : max === g
+        ? (b - r) / delta + 2
+        : (r - g) / delta + 4;
   return { h: (hue * 60 + 360) % 360, s: max ? delta / max : 0, v: max };
 }
 
@@ -79,7 +133,8 @@ function hsvToColor({ h, s, v }) {
   const channel = (offset) => {
     const k = (offset + h / 60) % 6;
     return Math.round((v - v * s * Math.max(0, Math.min(k, 4 - k, 1))) * 255)
-      .toString(16).padStart(2, "0");
+      .toString(16)
+      .padStart(2, "0");
   };
   return `#${channel(5)}${channel(3)}${channel(1)}`;
 }
@@ -113,20 +168,28 @@ function InlineColorPicker({ color, onChange, children }) {
 
   const pickAt = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    update({ ...hsv,
+    update({
+      ...hsv,
       s: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
       v: 1 - Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
     });
   };
 
   const release = (e) => {
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId))
+      e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const commitHex = () => {
     const match = hexDraft.trim().match(/^#?([a-f\d]{6}|[a-f\d]{3})$/i);
-    if (!match) { setHexDraft(color); return; }
-    const hex = match[1].length === 3 ? [...match[1]].map((c) => c + c).join("") : match[1];
+    if (!match) {
+      setHexDraft(color);
+      return;
+    }
+    const hex =
+      match[1].length === 3
+        ? [...match[1]].map((c) => c + c).join("")
+        : match[1];
     const value = `#${hex.toLowerCase()}`;
     setHexDraft(value);
     onChange(value);
@@ -136,111 +199,183 @@ function InlineColorPicker({ color, onChange, children }) {
     <section className="hide-color-picker" aria-label="色を選ぶ">
       <div className="hide-color-picker-header">
         <h3>色を選ぶ</h3>
-        <div className="hide-color-mode-switch" role="group" aria-label="色の選び方">
-          <Tab pressed={mode === "free"} color="accent" onClick={() => setMode("free")}>自由に選ぶ</Tab>
-          <Tab pressed={mode === "palette"} color="accent" onClick={() => setMode("palette")}>パレットから選ぶ</Tab>
+        <div
+          className="hide-color-mode-switch"
+          role="group"
+          aria-label="色の選び方"
+        >
+          <Tab
+            pressed={mode === "free"}
+            color="accent"
+            onClick={() => setMode("free")}
+          >
+            自由に選ぶ
+          </Tab>
+          <Tab
+            pressed={mode === "palette"}
+            color="accent"
+            onClick={() => setMode("palette")}
+          >
+            パレットから選ぶ
+          </Tab>
         </div>
       </div>
       <div className="hide-color-mode-panels">
-      <div className={`hide-color-picker-body hide-color-mode-panel${mode === "free" ? "" : " is-inactive"}`}
-        aria-hidden={mode !== "free"}>
         <div
-          className="hide-color-spectrum"
-          role="group"
-          tabIndex={0}
-          aria-label={`鮮やかさ ${Math.round(hsv.s * 100)}%、明るさ ${Math.round(hsv.v * 100)}%。左右キーで鮮やかさ、上下キーで明るさを調整`}
-          style={{ "--picker-hue": hsv.h }}
-          onPointerDown={(e) => {
-            if (e.button !== 0 || e.isPrimary === false) return;
-            e.preventDefault();
-            e.currentTarget.focus();
-            e.currentTarget.setPointerCapture(e.pointerId);
-            pickAt(e);
-          }}
-          onPointerMove={(e) => {
-            if (e.currentTarget.hasPointerCapture(e.pointerId)) pickAt(e);
-          }}
-          onPointerUp={release}
-          onPointerCancel={release}
-          onKeyDown={(e) => {
-            const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0],
-              ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
-            if (!direction) return;
-            e.preventDefault();
-            e.stopPropagation();
-            const step = e.shiftKey ? 0.1 : 0.01;
-            update({ ...hsv, s: Math.max(0, Math.min(1, hsv.s + direction[0] * step)),
-              v: Math.max(0, Math.min(1, hsv.v + direction[1] * step)) });
-          }}
+          className={`hide-color-picker-body hide-color-mode-panel${mode === "free" ? "" : " is-inactive"}`}
+          aria-hidden={mode !== "free"}
         >
-          <span className="hide-color-cursor" style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }} />
-        </div>
-        <div className="hide-color-settings">
-          <label className="hide-color-hex">
-            <span className="hide-color-preview" style={{ background: color }} aria-hidden="true" />
-            <span>色コード</span>
-            <input
-              type="text"
-              className="b-input"
-              aria-label="色コード"
-              value={hexDraft}
-              maxLength={7}
-              spellCheck={false}
-              autoComplete="off"
-              onChange={(e) => {
-                const value = e.target.value;
-                setHexDraft(value);
-                if (/^#?[a-f\d]{6}$/i.test(value)) onChange(`#${value.replace(/^#/, "").toLowerCase()}`);
-              }}
-              onBlur={commitHex}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); commitHex(); }
-                if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setHexDraft(color); }
-              }}
+          <div
+            className="hide-color-spectrum"
+            role="group"
+            tabIndex={0}
+            aria-label={`鮮やかさ ${Math.round(hsv.s * 100)}%、明るさ ${Math.round(hsv.v * 100)}%。左右キーで鮮やかさ、上下キーで明るさを調整`}
+            style={{ "--picker-hue": hsv.h }}
+            onPointerDown={(e) => {
+              if (e.button !== 0 || e.isPrimary === false) return;
+              e.preventDefault();
+              e.currentTarget.focus();
+              e.currentTarget.setPointerCapture(e.pointerId);
+              pickAt(e);
+            }}
+            onPointerMove={(e) => {
+              if (e.currentTarget.hasPointerCapture(e.pointerId)) pickAt(e);
+            }}
+            onPointerUp={release}
+            onPointerCancel={release}
+            onKeyDown={(e) => {
+              const direction = {
+                ArrowLeft: [-1, 0],
+                ArrowRight: [1, 0],
+                ArrowUp: [0, 1],
+                ArrowDown: [0, -1],
+              }[e.key];
+              if (!direction) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const step = e.shiftKey ? 0.1 : 0.01;
+              update({
+                ...hsv,
+                s: Math.max(0, Math.min(1, hsv.s + direction[0] * step)),
+                v: Math.max(0, Math.min(1, hsv.v + direction[1] * step)),
+              });
+            }}
+          >
+            <span
+              className="hide-color-cursor"
+              style={{ left: `${hsv.s * 100}%`, top: `${(1 - hsv.v) * 100}%` }}
             />
-          </label>
-          <label className="hide-color-hue">
-            <span>色相</span>
-            <input type="range" min="0" max="360" value={hsv.h}
-              onChange={(e) => update({ ...hsv, h: Number(e.target.value) })} />
-          </label>
-          <div className="hide-color-swatches" role="group" aria-label="基本の色">
-            {COLOR_SWATCHES.map(([name, value]) => (
-              <button key={value} type="button" aria-label={name}
-                aria-pressed={color.toLowerCase() === value} title={`${name} ${value}`}
-                style={{ background: value }} onClick={() => onChange(value)} />
+          </div>
+          <div className="hide-color-settings">
+            <label className="hide-color-hex">
+              <span
+                className="hide-color-preview"
+                style={{ background: color }}
+                aria-hidden="true"
+              />
+              <span>色コード</span>
+              <input
+                type="text"
+                className="b-input"
+                aria-label="色コード"
+                value={hexDraft}
+                maxLength={7}
+                spellCheck={false}
+                autoComplete="off"
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setHexDraft(value);
+                  if (/^#?[a-f\d]{6}$/i.test(value))
+                    onChange(`#${value.replace(/^#/, "").toLowerCase()}`);
+                }}
+                onBlur={commitHex}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitHex();
+                  }
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setHexDraft(color);
+                  }
+                }}
+              />
+            </label>
+            <label className="hide-color-hue">
+              <span>色相</span>
+              <input
+                type="range"
+                min="0"
+                max="360"
+                value={hsv.h}
+                onChange={(e) => update({ ...hsv, h: Number(e.target.value) })}
+              />
+            </label>
+            <div
+              className="hide-color-swatches"
+              role="group"
+              aria-label="基本の色"
+            >
+              {COLOR_SWATCHES.map(([name, value]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-label={name}
+                  aria-pressed={color.toLowerCase() === value}
+                  title={`${name} ${value}`}
+                  style={{ background: value }}
+                  onClick={() => onChange(value)}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+        <div
+          className={`hide-color-palette hide-color-mode-panel${mode === "palette" ? "" : " is-inactive"}`}
+          aria-hidden={mode !== "palette"}
+        >
+          <p className="hide-color-selection">
+            <span
+              className="hide-color-preview"
+              style={{ background: color }}
+              aria-hidden="true"
+            />
+            選択中 <span>{color}</span>
+          </p>
+          <div
+            className="hide-color-swatches hide-color-presets"
+            role="group"
+            aria-label="パレットの色"
+          >
+            {PALETTE_COLORS.map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-label={value}
+                aria-pressed={color.toLowerCase() === value}
+                title={value}
+                style={{ background: value }}
+                onClick={() => onChange(value)}
+              />
             ))}
           </div>
         </div>
-      </div>
-      <div className={`hide-color-palette hide-color-mode-panel${mode === "palette" ? "" : " is-inactive"}`}
-        aria-hidden={mode !== "palette"}>
-        <p className="hide-color-selection">
-          <span className="hide-color-preview" style={{ background: color }} aria-hidden="true" />
-          選択中 <span>{color}</span>
-        </p>
-        <div className="hide-color-swatches hide-color-presets" role="group" aria-label="パレットの色">
-          {PALETTE_COLORS.map((value) => (
-            <button key={value} type="button" aria-label={value}
-              aria-pressed={color.toLowerCase() === value} title={value}
-              style={{ background: value }} onClick={() => onChange(value)} />
-          ))}
-        </div>
-      </div>
       </div>
       <div className="hide-color-actions">{children}</div>
     </section>
   );
 }
 
-const AUTO_SCROLL_EDGE = 24; // 見えている範囲の上端・下端からこの距離（画面上の px）に入ったら自動スクロール
-const AUTO_SCROLL_MAX = 20; // 1フレームあたりの最大スクロール量 (px)
+const AUTO_SCROLL_EDGE = 48; // 見えている範囲の上端・下端からこの距離（画面上の px）に入ったら自動スクロール
+const AUTO_SCROLL_MAX = 30; // 1フレームあたりの最大スクロール量 (px)
 const SHAKE_DISTANCE = 36; // 画面上の px。小さな手ぶれや表示倍率に左右されない。
 const SHAKE_TURN_WINDOW = 700;
 const SHAKE_TURNS_TO_CALM = 4;
 const hasEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
 const MAIN = "main";
-const ZOOM_MIN = 1, ZOOM_MAX = 4;
+const ZOOM_MIN = 1,
+  ZOOM_MAX = 4;
 
 // 一方向への移動は数えず、十分な幅で素早く折り返した回数を数える。
 function trackShake(shake, point) {
@@ -257,7 +392,8 @@ function trackShake(shake, point) {
     } else if (delta * motion.direction > 0) {
       motion.extreme = value;
     } else if (delta * motion.direction <= -SHAKE_DISTANCE) {
-      motion.turns = point.timeStamp - motion.at <= SHAKE_TURN_WINDOW ? motion.turns + 1 : 0;
+      motion.turns =
+        point.timeStamp - motion.at <= SHAKE_TURN_WINDOW ? motion.turns + 1 : 0;
       motion.direction *= -1;
       motion.extreme = value;
       motion.at = point.timeStamp;
@@ -283,8 +419,10 @@ export default function Hide({ siteId }) {
   const nextSplash = useRef(1);
   const deadlineRef = useRef(0);
   const saveLockRef = useRef(false);
-  const initialBody = useRef(new URLSearchParams(window.location.hash.split("?")[1]).get("body"));
-  
+  const initialBody = useRef(
+    new URLSearchParams(window.location.hash.split("?")[1]).get("body"),
+  );
+
   // 本体 { key, x, y, body, pose, rotation, joints }
   const [figs, setFigs] = useState([]);
   const [activeKey, setActiveKey] = useState(MAIN);
@@ -313,7 +451,10 @@ export default function Hide({ siteId }) {
       e.preventDefault();
       setZoom((z) => {
         const next = z * Math.exp(-e.deltaY * 0.01);
-        return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(next * 100) / 100));
+        return Math.min(
+          ZOOM_MAX,
+          Math.max(ZOOM_MIN, Math.round(next * 100) / 100),
+        );
       });
     };
     window.addEventListener("wheel", onWheel, { passive: false });
@@ -325,14 +466,23 @@ export default function Hide({ siteId }) {
     const onKey = (e) => {
       if (e.target instanceof HTMLInputElement) return;
       if (!(e.ctrlKey || e.metaKey)) return;
-      const zoomIn = e.key === "+" || e.key === "=" || e.key === ";" ||
-  e.code === "Equal" || e.code === "Semicolon" || e.code === "NumpadAdd";
-const zoomOut = e.key === "-" || e.code === "Minus" || e.code === "NumpadSubtract";
-const zoomReset = e.key === "0" || e.code === "Digit0" || e.code === "Numpad0";
-if (zoomIn || zoomOut || zoomReset) e.preventDefault(); // 先に止める
-if (zoomIn) setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + 0.25) * 100) / 100));
-if (zoomOut) setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - 0.25) * 100) / 100));
-if (zoomReset) setZoom(1);
+      const zoomIn =
+        e.key === "+" ||
+        e.key === "=" ||
+        e.key === ";" ||
+        e.code === "Equal" ||
+        e.code === "Semicolon" ||
+        e.code === "NumpadAdd";
+      const zoomOut =
+        e.key === "-" || e.code === "Minus" || e.code === "NumpadSubtract";
+      const zoomReset =
+        e.key === "0" || e.code === "Digit0" || e.code === "Numpad0";
+      if (zoomIn || zoomOut || zoomReset) e.preventDefault(); // 先に止める
+      if (zoomIn)
+        setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + 0.25) * 100) / 100));
+      if (zoomOut)
+        setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - 0.25) * 100) / 100));
+      if (zoomReset) setZoom(1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -342,12 +492,16 @@ if (zoomReset) setZoom(1);
   activeRef.current = active;
   const editingJoints = tool === "joints";
   const showPaint = Boolean(active) && tool !== "move" && !timeUp && !savedId;
-  const remaining = deadline ? Math.max(0, (deadline - (savedAt ?? now)) / 1000) : HIDE_TIME_LIMIT_SEC;
+  const remaining = deadline
+    ? Math.max(0, (deadline - (savedAt ?? now)) / 1000)
+    : HIDE_TIME_LIMIT_SEC;
   const editingLocked = timeUp || saving || Boolean(savedId);
 
   // 表示更新や背景タブのタイマーが遅れても、締切後の編集を受け付けない。
-  const canEdit = () => deadlineRef.current > 0 && !saveLockRef.current
-    && Date.now() < deadlineRef.current;
+  const canEdit = () =>
+    deadlineRef.current > 0 &&
+    !saveLockRef.current &&
+    Date.now() < deadlineRef.current;
 
   useEffect(() => {
     if (!deadline || savedId || timeUp) return;
@@ -379,10 +533,13 @@ if (zoomReset) setZoom(1);
         rotation: painter.rotation,
         body: painter.body,
         joints: painter.joints,
-        ...clampPos({
-          x: active.x + painter.bounds.x - before.x,
-          y: active.y + painter.bounds.y - before.y,
-        }, painter.bounds),
+        ...clampPos(
+          {
+            x: active.x + painter.bounds.x - before.x,
+            y: active.y + painter.bounds.y - before.y,
+          },
+          painter.bounds,
+        ),
       });
     }
     syncPaintCanvas();
@@ -408,7 +565,7 @@ if (zoomReset) setZoom(1);
     if (nextTool !== "move" && !active) return;
     onPointerUp();
     setSplashes([]);
-   setTool(nextTool);
+    setTool(nextTool);
   };
 
   const closePaint = () => {
@@ -423,21 +580,31 @@ if (zoomReset) setZoom(1);
   };
 
   const placePaintDialog = (position = paintDialogPositionRef.current) => {
-  const el = paintDialogRef.current;
-  if (!el || !position) return position;
-  const margin = 12;
-  // ヘッダーと帯（.b-hint）の下までを移動範囲にする
-  const top = Math.max(margin, document.querySelector(".b-hint")?.getBoundingClientRect().bottom ?? 0);
-  const x = Math.max(margin, Math.min(position.x, window.innerWidth - el.offsetWidth - margin));
-  const y = Math.max(top, Math.min(position.y, window.innerHeight - el.offsetHeight - margin));
-  el.style.left = `${Math.round(x)}px`;
-  el.style.top = `${Math.round(y)}px`;
-  return { ...position, x, y };
-};
+    const el = paintDialogRef.current;
+    if (!el || !position) return position;
+    const margin = 12;
+    // ヘッダーと帯（.b-hint）の下までを移動範囲にする
+    const top = Math.max(
+      margin,
+      document.querySelector(".b-hint")?.getBoundingClientRect().bottom ?? 0,
+    );
+    const x = Math.max(
+      margin,
+      Math.min(position.x, window.innerWidth - el.offsetWidth - margin),
+    );
+    const y = Math.max(
+      top,
+      Math.min(position.y, window.innerHeight - el.offsetHeight - margin),
+    );
+    el.style.left = `${Math.round(x)}px`;
+    el.style.top = `${Math.round(y)}px`;
+    return { ...position, x, y };
+  };
 
   const endPaintDialogDrag = (e) => {
     const drag = paintDialogDragRef.current;
-    if (!drag || (e?.pointerId != null && e.pointerId !== drag.pointerId)) return;
+    if (!drag || (e?.pointerId != null && e.pointerId !== drag.pointerId))
+      return;
     paintDialogDragRef.current = null;
     paintDialogRef.current?.classList.remove("is-panel-dragging");
     if (drag.handle.hasPointerCapture(drag.pointerId))
@@ -446,29 +613,45 @@ if (zoomReset) setZoom(1);
   };
 
   const onPaintDialogDown = (e) => {
-    if (!canEdit() || e.button !== 0 || e.isPrimary === false ||
-      colorPickerRef.current || e.target.closest("button, input, select, textarea, a")) return;
+    if (
+      !canEdit() ||
+      e.button !== 0 ||
+      e.isPrimary === false ||
+      colorPickerRef.current ||
+      e.target.closest("button, input, select, textarea, a")
+    )
+      return;
     e.preventDefault();
     onPointerUp();
     const rect = paintDialogRef.current.getBoundingClientRect();
     paintDialogDragRef.current = {
-      handle: e.currentTarget, pointerId: e.pointerId,
-      startX: e.clientX, startY: e.clientY,
-      x: rect.left, y: rect.top, width: rect.width,
+      handle: e.currentTarget,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
     };
     e.currentTarget.setPointerCapture(e.pointerId);
     paintDialogRef.current.classList.add("is-panel-dragging");
   };
 
   const onPaintDialogMove = (e) => {
-    if (!canEdit()) { endPaintDialogDrag(); return; }
+    if (!canEdit()) {
+      endPaintDialogDrag();
+      return;
+    }
     const drag = paintDialogDragRef.current;
     if (!drag || e.pointerId !== drag.pointerId) return;
-    const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+    const dx = e.clientX - drag.startX,
+      dy = e.clientY - drag.startY;
     if (!drag.moved && Math.hypot(dx, dy) < 3) return;
     drag.moved = true;
     paintDialogPositionRef.current = placePaintDialog({
-      x: drag.x + dx, y: drag.y + dy, width: drag.width,
+      x: drag.x + dx,
+      y: drag.y + dy,
+      width: drag.width,
     });
   };
 
@@ -492,8 +675,11 @@ if (zoomReset) setZoom(1);
   // 今見えている範囲の中心（横に少しずらせる）に新しい人型を置く
   const newFig = (key = MAIN, offset = 0) => {
     const c = stageRef.current.viewCenter();
-    const body = active?.body ?? (Object.keys(BODY_TYPES).includes(initialBody.current)
-      ? initialBody.current : "standard");
+    const body =
+      active?.body ??
+      (Object.keys(BODY_TYPES).includes(initialBody.current)
+        ? initialBody.current
+        : "standard");
     const joints = createJoints("stand", body);
     const s = getFigureBounds("stand", 0, joints, body);
     return {
@@ -520,7 +706,12 @@ if (zoomReset) setZoom(1);
     if (!el) return;
     canvasRefs.current[f.key] = el;
     if (!painters.current[f.key])
-      painters.current[f.key] = new JointPainter(el, f.pose, f.rotation, f.body);
+      painters.current[f.key] = new JointPainter(
+        el,
+        f.pose,
+        f.rotation,
+        f.body,
+      );
   };
 
   const changeBody = (body) => {
@@ -532,10 +723,13 @@ if (zoomReset) setZoom(1);
     updateFig(active.key, {
       body: painter.body,
       joints: painter.joints,
-      ...clampPos({
-        x: active.x + painter.bounds.x - before.x,
-        y: active.y + painter.bounds.y - before.y,
-      }, painter.bounds),
+      ...clampPos(
+        {
+          x: active.x + painter.bounds.x - before.x,
+          y: active.y + painter.bounds.y - before.y,
+        },
+        painter.bounds,
+      ),
     });
     setSplashes([]);
     syncPaintCanvas();
@@ -575,10 +769,18 @@ if (zoomReset) setZoom(1);
     const painter = painters.current[active.key];
     if (!painter) return;
     const joints = createJoints("stand", active.body);
-    const unchanged = active.pose === "stand" && active.rotation === 0 &&
-      joints.every((limb, index) => ["root", "bend", "end"].every((point) =>
-        Math.hypot(limb[point].x - painter.joints[index][point].x,
-          limb[point].y - painter.joints[index][point].y) < 0.001));
+    const unchanged =
+      active.pose === "stand" &&
+      active.rotation === 0 &&
+      joints.every((limb, index) =>
+        ["root", "bend", "end"].every(
+          (point) =>
+            Math.hypot(
+              limb[point].x - painter.joints[index][point].x,
+              limb[point].y - painter.joints[index][point].y,
+            ) < 0.001,
+        ),
+      );
     if (unchanged) return;
     const source = painter.snapshot();
     const before = figureBounds(active);
@@ -591,10 +793,13 @@ if (zoomReset) setZoom(1);
       pose: painter.pose,
       rotation: painter.rotation,
       joints: painter.joints,
-      ...clampPos({
-        x: active.x + painter.bounds.x - before.x,
-        y: active.y + painter.bounds.y - before.y,
-      }, painter.bounds),
+      ...clampPos(
+        {
+          x: active.x + painter.bounds.x - before.x,
+          y: active.y + painter.bounds.y - before.y,
+        },
+        painter.bounds,
+      ),
     });
     syncPaintCanvas();
   };
@@ -622,10 +827,14 @@ if (zoomReset) setZoom(1);
     const { grab, size, carry } = drag;
     const minX = Math.max(grab.x, carry.grip.x);
     const minY = Math.max(grab.y, carry.grip.y);
-    const maxX = Math.min(stage.size.width - size.w + grab.x,
-      stage.size.width - carry.bounds.w + carry.grip.x);
-    const maxY = Math.min(stage.size.height - size.h + grab.y,
-      stage.size.height - carry.bounds.h + carry.grip.y);
+    const maxX = Math.min(
+      stage.size.width - size.w + grab.x,
+      stage.size.width - carry.bounds.w + carry.grip.x,
+    );
+    const maxY = Math.min(
+      stage.size.height - size.h + grab.y,
+      stage.size.height - carry.bounds.h + carry.grip.y,
+    );
     return {
       x: Math.round(Math.min(Math.max(p.x, minX), maxX) - grab.x),
       y: Math.round(Math.min(Math.max(p.y, minY), maxY) - grab.y),
@@ -634,7 +843,10 @@ if (zoomReset) setZoom(1);
 
   // ドラッグ中、人型が見えている範囲の上端・下端に来たら、その方向へ自動でスクロールする
   const autoScroll = () => {
-    if (!canEdit()) { onPointerUp(); return; }
+    if (!canEdit()) {
+      onPointerUp();
+      return;
+    }
     const drag = dragRef.current;
     if (!drag || drag.painting || drag.joint) return;
     const stage = stageRef.current;
@@ -646,7 +858,12 @@ if (zoomReset) setZoom(1);
       dy < 0
         ? Math.min(0, carriedTop - (view.top + AUTO_SCROLL_EDGE))
         : dy > 0
-          ? Math.max(0, carriedTop + drag.carry.bounds.h - (view.bottom - AUTO_SCROLL_EDGE))
+          ? Math.max(
+              0,
+              carriedTop +
+                drag.carry.bounds.h -
+                (view.bottom - AUTO_SCROLL_EDGE),
+            )
           : 0;
     if (over) {
       stage.scrollBy(
@@ -661,45 +878,73 @@ if (zoomReset) setZoom(1);
 
   const showSplash = (key, x, y) => {
     const painter = painters.current[key];
-    if (!painter.splash || !painter.brush ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (
+      !painter.splash ||
+      !painter.brush ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
     const id = nextSplash.current++;
     // 飛沫は表示だけ。塗り跡と違い、保存する画像や背景には残さない。
     const splash = {
-      id, color,
-      x: x / painter.canvas.width * 100,
-      y: y / painter.canvas.height * 100,
-      size: painter.brush.radius * 2.8 / painter.canvas.width * 100,
+      id,
+      color,
+      x: (x / painter.canvas.width) * 100,
+      y: (y / painter.canvas.height) * 100,
+      size: ((painter.brush.radius * 2.8) / painter.canvas.width) * 100,
     };
     setSplashes((items) => [...items.slice(-5), splash]);
   };
 
   const onPointerDown = (f) => (e) => {
-    if (!canEdit() || e.button !== 0 || e.isPrimary === false || tool === "joints") return;
+    if (
+      !canEdit() ||
+      e.button !== 0 ||
+      e.isPrimary === false ||
+      tool === "joints"
+    )
+      return;
     e.preventDefault();
-e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
     setActiveKey(f.key);
     if (tool === "move") {
       const preview = createHangingPreview(painters.current[f.key], {
-        animated: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        animated: !window.matchMedia("(prefers-reduced-motion: reduce)")
+          .matches,
       });
       const [x1, y1, x2, y2] = POSES[f.pose].limbs[0];
-      const grab = toFigurePoint({ x: (x1 + x2) / 2, y: (y1 + y2) / 2 },
-        f.rotation, figureBounds(f));
-      const carry = { key: f.key, bounds: preview.bounds, grip: preview.grip,
+      const grab = toFigurePoint(
+        { x: (x1 + x2) / 2, y: (y1 + y2) / 2 },
+        f.rotation,
+        figureBounds(f),
+      );
+      const carry = {
+        key: f.key,
+        bounds: preview.bounds,
+        grip: preview.grip,
         sourceGrip: grab,
         layers: preview.layers?.map(({ canvas, ...motion }) => ({
-          ...motion, image: canvas.toDataURL("image/png"),
-        })) ?? [{ image: preview.canvas.toDataURL("image/png") }] };
+          ...motion,
+          image: canvas.toDataURL("image/png"),
+        })) ?? [{ image: preview.canvas.toDataURL("image/png") }],
+      };
       dragRef.current = {
         key: f.key,
         size: figureBounds(f),
         grab,
         carry,
         calm: false,
-        shake: Object.fromEntries(["X", "Y"].map((axis) => [axis, {
-          extreme: e[`client${axis}`], direction: 0, turns: 0, at: e.timeStamp,
-        }])),
+        shake: Object.fromEntries(
+          ["X", "Y"].map((axis) => [
+            axis,
+            {
+              extreme: e[`client${axis}`],
+              direction: 0,
+              turns: 0,
+              at: e.timeStamp,
+            },
+          ]),
+        ),
         pickedUp: false,
         startX: e.clientX,
         startY: e.clientY,
@@ -708,34 +953,43 @@ e.currentTarget.setPointerCapture(e.pointerId);
       };
     } else {
       const [x, y] = canvasPoint(f.key, e, e.currentTarget);
-      painters.current[f.key].beginStroke(
-        x, y,
-        { color, size, erase: tool === "eraser", splash: tool === "pen" },
-      );
-      dragRef.current = { key: f.key, painting: true,
-        lastSplash: { x, y, at: performance.now() } };
+      painters.current[f.key].beginStroke(x, y, {
+        color,
+        size,
+        erase: tool === "eraser",
+        splash: tool === "pen",
+      });
+      dragRef.current = {
+        key: f.key,
+        painting: true,
+        lastSplash: { x, y, at: performance.now() },
+      };
       syncPaintCanvas();
       showSplash(f.key, x, y);
     }
   };
 
   const onPointerMove = (f) => (e) => {
-    if (!canEdit()) { onPointerUp(); return; }
+    if (!canEdit()) {
+      onPointerUp();
+      return;
+    }
     const drag = dragRef.current;
     if (!drag || drag.key !== f.key || drag.joint) return;
     if (drag.painting) {
       const painter = painters.current[f.key];
       const events = e.nativeEvent.getCoalescedEvents?.() ?? [e];
       for (const ev of events)
-        painter.strokeTo(
-          ...canvasPoint(f.key, ev, e.currentTarget),
-        );
+        painter.strokeTo(...canvasPoint(f.key, ev, e.currentTarget));
       syncPaintCanvas();
       if (painter.splash && painter.brush) {
         const [x, y] = canvasPoint(f.key, e, e.currentTarget);
         const at = performance.now();
-        if (at - drag.lastSplash.at >= 70 &&
-          Math.hypot(x - drag.lastSplash.x, y - drag.lastSplash.y) >= painter.brush.radius * 0.4) {
+        if (
+          at - drag.lastSplash.at >= 70 &&
+          Math.hypot(x - drag.lastSplash.x, y - drag.lastSplash.y) >=
+            painter.brush.radius * 0.4
+        ) {
           showSplash(f.key, x, y);
           drag.lastSplash = { x, y, at };
         }
@@ -744,7 +998,8 @@ e.currentTarget.setPointerCapture(e.pointerId);
       drag.clientX = e.clientX;
       drag.clientY = e.clientY;
       if (!drag.pickedUp) {
-        if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 3) return;
+        if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 3)
+          return;
         drag.pickedUp = true;
         setCarried(drag.carry);
         drag.raf = requestAnimationFrame(autoScroll);
@@ -756,7 +1011,10 @@ e.currentTarget.setPointerCapture(e.pointerId);
           drag.calm = true;
           // 元の絵をそのまま使い、首元の持ち手を保って通常のポーズへ戻す。
           drag.carry = {
-            key: f.key, bounds: drag.size, grip: drag.grab, sourceGrip: drag.grab,
+            key: f.key,
+            bounds: drag.size,
+            grip: drag.grab,
+            sourceGrip: drag.grab,
             layers: [{ image: painters.current[f.key].toDataURL() }],
           };
           setCarried(drag.carry);
@@ -777,16 +1035,16 @@ e.currentTarget.setPointerCapture(e.pointerId);
   };
 
   useEffect(() => {
-  if (!deadline || now < deadline || timeUp || savedId || saving) return;
-  colorPickerRef.current?.abort();
-  colorPickerRef.current = null;
-  endPaintDialogDrag();
-  onPointerUp();
-  setShowHelp(false);
-  setTool("move");
-  setSplashes([]);
-  setTimeUp(true);
-}, [deadline, now, timeUp, savedId, saving]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!deadline || now < deadline || timeUp || savedId || saving) return;
+    colorPickerRef.current?.abort();
+    colorPickerRef.current = null;
+    endPaintDialogDrag();
+    onPointerUp();
+    setShowHelp(false);
+    setTool("move");
+    setSplashes([]);
+    setTimeUp(true);
+  }, [deadline, now, timeUp, savedId, saving]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const endDrag = () => onPointerUp();
@@ -800,10 +1058,15 @@ e.currentTarget.setPointerCapture(e.pointerId);
   const applyJoints = (f, joints, source, record = true) => {
     if (!canEdit()) return false;
     const painter = painters.current[f.key];
-    const unchanged = joints.every((limb, i) => ["bend", "end"].every((handle) =>
-      Math.hypot(limb[handle].x - painter.joints[i][handle].x,
-        limb[handle].y - painter.joints[i][handle].y) < 0.001,
-    ));
+    const unchanged = joints.every((limb, i) =>
+      ["bend", "end"].every(
+        (handle) =>
+          Math.hypot(
+            limb[handle].x - painter.joints[i][handle].x,
+            limb[handle].y - painter.joints[i][handle].y,
+          ) < 0.001,
+      ),
+    );
     if (unchanged) return false;
     const before = figureBounds(f);
     const next = getFigureBounds(f.pose, f.rotation, joints, f.body);
@@ -829,68 +1092,92 @@ e.currentTarget.setPointerCapture(e.pointerId);
     e.currentTarget.setPointerCapture(e.pointerId);
     const f = activeRef.current;
     dragRef.current = {
-      key: f.key, joint: true, index, handle, figure: f,
+      key: f.key,
+      joint: true,
+      index,
+      handle,
+      figure: f,
       source: painters.current[f.key].snapshot(),
       changed: false,
     };
   };
 
   const onJointMove = (e) => {
-    if (!canEdit()) { onPointerUp(); return; }
+    if (!canEdit()) {
+      onPointerUp();
+      return;
+    }
     const drag = dragRef.current;
     if (!drag?.joint) return;
     const { figure, source, index, handle } = drag;
     const p = stageRef.current.toStagePoint(e.clientX, e.clientY);
-const b = figureBounds(figure);
-// 人型の中心（胴の原点）のフィールド座標。関節を動かしても変わらない
-const cx = figure.x - b.x, cy = figure.y - b.y;
-const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x: 0, y: 0 });
+    const b = figureBounds(figure);
+    // 人型の中心（胴の原点）のフィールド座標。関節を動かしても変わらない
+    const cx = figure.x - b.x,
+      cy = figure.y - b.y;
+    const point = fromFigurePoint(
+      { x: p.x - cx, y: p.y - cy },
+      figure.rotation,
+      { x: 0, y: 0 },
+    );
     const joints = moveJoint(source.joints, index, handle, point);
     if (applyJoints(figure, joints, source, !drag.changed)) drag.changed = true;
   };
 
   const onJointKey = (index, handle) => (e) => {
     if (!canEdit()) return;
-    const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0],
-      ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+    const direction = {
+      ArrowLeft: [-1, 0],
+      ArrowRight: [1, 0],
+      ArrowUp: [0, -1],
+      ArrowDown: [0, 1],
+    }[e.key];
     if (!direction) return;
     e.preventDefault();
     e.stopPropagation();
     const f = activeRef.current;
     const source = painters.current[f.key].snapshot();
-    const point = toFigurePoint(source.joints[index][handle], f.rotation, { x: 0, y: 0 });
+    const point = toFigurePoint(source.joints[index][handle], f.rotation, {
+      x: 0,
+      y: 0,
+    });
     const step = e.shiftKey ? 5 : 1;
-    const target = fromFigurePoint({
-      x: point.x + direction[0] * step, y: point.y + direction[1] * step,
-    }, f.rotation, { x: 0, y: 0 });
+    const target = fromFigurePoint(
+      {
+        x: point.x + direction[0] * step,
+        y: point.y + direction[1] * step,
+      },
+      f.rotation,
+      { x: 0, y: 0 },
+    );
     applyJoints(f, moveJoint(source.joints, index, handle, target), source);
   };
 
   useEffect(() => {
-  if (!showPaint) return;
-  if (!paintDialogPositionRef.current) {
-    const el = paintDialogRef.current;
-    // 初回は右下に出す
-    paintDialogPositionRef.current = placePaintDialog({
-      x: window.innerWidth - el.offsetWidth - 16,
-      y: window.innerHeight - el.offsetHeight - 16,
-    });
-  } else {
-    placePaintDialog();
-  }
-  const relayout = () => placePaintDialog();
-  window.addEventListener("resize", relayout);
-  window.addEventListener("blur", onPointerUp);
-  window.addEventListener("blur", endPaintDialogDrag);
-  return () => {
-    window.removeEventListener("resize", relayout);
-    window.removeEventListener("blur", onPointerUp);
-    window.removeEventListener("blur", endPaintDialogDrag);
-    colorPickerRef.current?.abort();
-    endPaintDialogDrag();
-    onPointerUp();
-  };
-}, [showPaint]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!showPaint) return;
+    if (!paintDialogPositionRef.current) {
+      const el = paintDialogRef.current;
+      // 初回は右下に出す
+      paintDialogPositionRef.current = placePaintDialog({
+        x: window.innerWidth - el.offsetWidth - 16,
+        y: window.innerHeight - el.offsetHeight - 16,
+      });
+    } else {
+      placePaintDialog();
+    }
+    const relayout = () => placePaintDialog();
+    window.addEventListener("resize", relayout);
+    window.addEventListener("blur", onPointerUp);
+    window.addEventListener("blur", endPaintDialogDrag);
+    return () => {
+      window.removeEventListener("resize", relayout);
+      window.removeEventListener("blur", onPointerUp);
+      window.removeEventListener("blur", endPaintDialogDrag);
+      colorPickerRef.current?.abort();
+      endPaintDialogDrag();
+      onPointerUp();
+    };
+  }, [showPaint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // キーボード：矢印で移動、Ctrl+Z で元に戻す、Ctrl+Shift+Z / Ctrl+Y でやり直す（選択中の人型に対して）
   useEffect(() => {
@@ -926,8 +1213,15 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
         return;
       }
       // 塗る画面でも位置を動かせる。入力・色選択・関節の操作を優先する。
-      if (e.defaultPrevented || dragRef.current || colorPickerRef.current ||
-        e.target.closest?.("input, select, textarea, [contenteditable]:not([contenteditable='false']), .hide-color-spectrum, .hide-joint-handle")) return;
+      if (
+        e.defaultPrevented ||
+        dragRef.current ||
+        colorPickerRef.current ||
+        e.target.closest?.(
+          "input, select, textarea, [contenteditable]:not([contenteditable='false']), .hide-color-spectrum, .hide-joint-handle",
+        )
+      )
+        return;
 
       const d = {
         ArrowLeft: [-1, 0],
@@ -992,24 +1286,21 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
     onPointerUp();
     setSaving(true);
     setError("");
-
+    // 位置と大きさは、ページ画像に対する相対座標 (0〜1) で保存する
     const toData = (f) => {
       const { w, h } = figureBounds(f);
       return {
-        x: f.x,
-        y: f.y,
-        w,
-        h,
+        ...stageRef.current.toRelative({ x: f.x, y: f.y, w, h }),
         image: painters.current[f.key].toDataURL(),
       };
     };
     try {
       const main = figs.find((f) => f.key === MAIN);
       const { id } = await api.createChameleon({
-  site: siteId,
-  name: name.trim(),
+        site: siteId,
+        name: name.trim(),
         ...toData(main),
-       /* decoys: [],*/
+        /* decoys: [],*/
       });
       setSavedAt(submittedAt);
       setSavedId(id);
@@ -1027,7 +1318,9 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
       <header className="b-tools">
         <div className="b-tools__row">
           <div className="b-tools__group">
-            <Tab as="a" href="#/" tilt={-2}>← ホーム</Tab>
+            <Tab as="a" href="#/" tilt={-2}>
+              ← ホーム
+            </Tab>
             <span className="b-hud__mode">隠す</span>
             <button
               type="button"
@@ -1039,22 +1332,43 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
             >
               ?
             </button>
-            <Timer ref={timerRef} variant="hide" time={formatTime(remaining)}
-              ratio={remaining / HIDE_TIME_LIMIT_SEC} danger={remaining < 30}
-              label={`隠す残り時間 ${formatTime(remaining)}`} />
+            <Timer
+              ref={timerRef}
+              variant="hide"
+              time={formatTime(remaining)}
+              ratio={remaining / HIDE_TIME_LIMIT_SEC}
+              danger={remaining < 30}
+              label={`隠す残り時間 ${formatTime(remaining)}`}
+            />
           </div>
           <div className="b-tools__group">
-            <Tab className="b-tab--icon" disabled={editingLocked} onClick={() => editPaint("undo")}
-              title="元に戻す (Ctrl+Z)" aria-label="元に戻す">
+            <Tab
+              className="b-tab--icon"
+              disabled={editingLocked}
+              onClick={() => editPaint("undo")}
+              title="元に戻す (Ctrl+Z)"
+              aria-label="元に戻す"
+            >
               <Icon name="undo" />
             </Tab>
-            <Tab className="b-tab--icon" disabled={editingLocked} onClick={() => editPaint("redo")}
-              title="やり直す (Ctrl+Shift+Z)" aria-label="やり直す">
+            <Tab
+              className="b-tab--icon"
+              disabled={editingLocked}
+              onClick={() => editPaint("redo")}
+              title="やり直す (Ctrl+Shift+Z)"
+              aria-label="やり直す"
+            >
               <Icon name="redo" />
             </Tab>
             <span className="b-tools__sep" aria-hidden="true" />
-          
-           <Sticker size="s" color="hide" tilt={-2} disabled={!figs.length || saving || Boolean(savedId)} onClick={() => setShowSaveModal(true)}>
+
+            <Sticker
+              size="s"
+              color="hide"
+              tilt={-2}
+              disabled={!figs.length || saving || Boolean(savedId)}
+              onClick={() => setShowSaveModal(true)}
+            >
               {saving ? "保存中…" : "ここに隠れる！"}
             </Sticker>
           </div>
@@ -1092,13 +1406,27 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
           </div>
           <div className="b-tools__group">
             <label className="b-hud__zoom">
-  <Icon name="search" size={18} />
-  <span>背景の拡大縮小</span>
-  <Range color="hide" min={1} max={4} step={0.1} value={zoom}
-    onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 110 }} />
-  <span className="b-hud__zoom-value">{Math.round(zoom * 100)}%</span>
-</label>
-            <Check checked={outline} onChange={(e) => setOutline(e.target.checked)}>枠を表示</Check>
+              <Icon name="search" size={18} />
+              <span>背景の拡大縮小</span>
+              <Range
+                color="hide"
+                min={1}
+                max={4}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                style={{ width: 110 }}
+              />
+              <span className="b-hud__zoom-value">
+                {Math.round(zoom * 100)}%
+              </span>
+            </label>
+            <Check
+              checked={outline}
+              onChange={(e) => setOutline(e.target.checked)}
+            >
+              枠を表示
+            </Check>
           </div>
         </div>
       </header>
@@ -1107,13 +1435,22 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
       <div className="b-hint">
         {active && <strong>{timeUp ? "編集終了" : "本体を編集中"}</strong>}
         <span>位置: {active ? `(${active.x}, ${active.y})` : "-"}</span>
-        {error && <span className="b-hint__error" role="alert">{error}</span>}
+        {error && (
+          <span className="b-hint__error" role="alert">
+            {error}
+          </span>
+        )}
       </div>
 
-      <SiteStage ref={stageRef} siteId={siteId} zoom={zoom} onReady={handleReady}>
-  {figs.map((f) => {
-    const b = figureBounds(f);
-    const { w, h } = b;
+      <SiteStage
+        ref={stageRef}
+        siteId={siteId}
+        zoom={zoom}
+        onReady={handleReady}
+      >
+        {figs.map((f) => {
+          const b = figureBounds(f);
+          const { w, h } = b;
           const carry = carried?.key === f.key ? carried : null;
           return (
             <div key={f.key}>
@@ -1136,50 +1473,73 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
                 onLostPointerCapture={onPointerUp}
               />
               {editingJoints && f.key === activeKey && !carry && (
-  <svg
-    className="hide-joint-overlay"
-    style={{ position: "absolute", left: f.x - b.x, top: f.y - b.y, right: "auto", bottom: "auto",
-      width: 1, height: 1, overflow: "visible", pointerEvents: "none" }}
-  >
-    {f.joints.map((limb, index) => {
-      const points = Object.fromEntries(["root", "bend", "end"].map((handle) =>
-        [handle, toFigurePoint(limb[handle], f.rotation, { x: 0, y: 0 })]));
-      return (
-        <g key={limb.label}>
-          <path
-            className="hide-joint-bones"
-            style={{ strokeWidth: 2 / zoom }}
-            d={`M${points.root.x} ${points.root.y} L${points.bend.x} ${points.bend.y} L${points.end.x} ${points.end.y}`}
-          />
-          {["bend", "end"].map((handle) => {
-            const point = points[handle];
-            const label = `${limb.label}の${jointLabel(index, handle)}`;
-            return (
-              <g
-                key={handle}
-                className="hide-joint-handle"
-                style={{ pointerEvents: "all" }}
-                role="button"
-                tabIndex={0}
-                aria-label={label}
-                onPointerDown={onJointDown(index, handle)}
-                onPointerMove={onJointMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
-                onLostPointerCapture={onPointerUp}
-                onKeyDown={onJointKey(index, handle)}
-              >
-                <title>{label}</title>
-                <circle cx={point.x} cy={point.y} r={12 / zoom} fill="transparent" />
-                <circle className="hide-joint-dot" cx={point.x} cy={point.y} r={5 / zoom} />
-              </g>
-            );
-          })}
-        </g>
-      );
-    })}
-  </svg>
-)}
+                <svg
+                  className="hide-joint-overlay"
+                  style={{
+                    position: "absolute",
+                    left: f.x - b.x,
+                    top: f.y - b.y,
+                    right: "auto",
+                    bottom: "auto",
+                    width: 1,
+                    height: 1,
+                    overflow: "visible",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {f.joints.map((limb, index) => {
+                    const points = Object.fromEntries(
+                      ["root", "bend", "end"].map((handle) => [
+                        handle,
+                        toFigurePoint(limb[handle], f.rotation, { x: 0, y: 0 }),
+                      ]),
+                    );
+                    return (
+                      <g key={limb.label}>
+                        <path
+                          className="hide-joint-bones"
+                          style={{ strokeWidth: 2 / zoom }}
+                          d={`M${points.root.x} ${points.root.y} L${points.bend.x} ${points.bend.y} L${points.end.x} ${points.end.y}`}
+                        />
+                        {["bend", "end"].map((handle) => {
+                          const point = points[handle];
+                          const label = `${limb.label}の${jointLabel(index, handle)}`;
+                          return (
+                            <g
+                              key={handle}
+                              className="hide-joint-handle"
+                              style={{ pointerEvents: "all" }}
+                              role="button"
+                              tabIndex={0}
+                              aria-label={label}
+                              onPointerDown={onJointDown(index, handle)}
+                              onPointerMove={onJointMove}
+                              onPointerUp={onPointerUp}
+                              onPointerCancel={onPointerUp}
+                              onLostPointerCapture={onPointerUp}
+                              onKeyDown={onJointKey(index, handle)}
+                            >
+                              <title>{label}</title>
+                              <circle
+                                cx={point.x}
+                                cy={point.y}
+                                r={12 / zoom}
+                                fill="transparent"
+                              />
+                              <circle
+                                className="hide-joint-dot"
+                                cx={point.x}
+                                cy={point.y}
+                                r={5 / zoom}
+                              />
+                            </g>
+                          );
+                        })}
+                      </g>
+                    );
+                  })}
+                </svg>
+              )}
               {carry && (
                 <div
                   className="hide-carried-figure"
@@ -1198,21 +1558,22 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
                       src={layer.image}
                       alt=""
                       draggable={false}
-                      style={layer.origin ? {
-                        transformOrigin: `${layer.origin.x}px ${layer.origin.y}px`,
-                        "--flutter-angle": `${layer.angle}deg`,
-                        "--flutter-duration": `${layer.duration}ms`,
-                        "--flutter-delay": `${layer.delay}ms`,
-                      } : undefined}
+                      style={
+                        layer.origin
+                          ? {
+                              transformOrigin: `${layer.origin.x}px ${layer.origin.y}px`,
+                              "--flutter-angle": `${layer.angle}deg`,
+                              "--flutter-duration": `${layer.duration}ms`,
+                              "--flutter-delay": `${layer.delay}ms`,
+                            }
+                          : undefined
+                      }
                     />
                   ))}
                 </div>
               )}
               {outline && !carry && (
-                <span
-                  className="fig-tag"
-                  style={{ left: f.x, top: f.y }}
-                >
+                <span className="fig-tag" style={{ left: f.x, top: f.y }}>
                   本体
                 </span>
               )}
@@ -1222,19 +1583,21 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
       </SiteStage>
 
       {showPaint && (
-  <aside
-    ref={paintDialogRef}
-    className="hide-paint-modal"
-    aria-label="本体の色塗り・ポーズ調整"
-  >
+        <aside
+          ref={paintDialogRef}
+          className="hide-paint-modal"
+          aria-label="本体の色塗り・ポーズ調整"
+        >
           <div className="hide-paint-panel">
-            <header className="hide-paint-header"
+            <header
+              className="hide-paint-header"
               title="上部をドラッグして画面を移動"
               onPointerDown={onPaintDialogDown}
               onPointerMove={onPaintDialogMove}
               onPointerUp={endPaintDialogDrag}
               onPointerCancel={endPaintDialogDrag}
-              onLostPointerCapture={endPaintDialogDrag}>
+              onLostPointerCapture={endPaintDialogDrag}
+            >
               <span className="hide-paint-grip" aria-hidden="true" />
             </header>
             <div className="hide-paint-controls">
@@ -1245,58 +1608,109 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
                       key={t.key}
                       pressed={tool === t.key}
                       color="hide"
-                      onClick={() => { if (!canEdit()) return; onPointerUp(); setSplashes([]); setTool(t.key); }}
+                      onClick={() => {
+                        if (!canEdit()) return;
+                        onPointerUp();
+                        setSplashes([]);
+                        setTool(t.key);
+                      }}
                     >
                       <Icon name={t.key} /> {t.label}
                     </Tab>
                   ))}
                 </div>
                 <div className="hide-paint-group">
-                  <Tab className="b-tab--icon" onClick={() => editPaint("undo")} aria-label="元に戻す" title="元に戻す (Ctrl+Z)">
+                  <Tab
+                    className="b-tab--icon"
+                    onClick={() => editPaint("undo")}
+                    aria-label="元に戻す"
+                    title="元に戻す (Ctrl+Z)"
+                  >
                     <Icon name="undo" />
                   </Tab>
-                  <Tab className="b-tab--icon" onClick={() => editPaint("redo")} aria-label="やり直す" title="やり直す (Ctrl+Shift+Z)">
+                  <Tab
+                    className="b-tab--icon"
+                    onClick={() => editPaint("redo")}
+                    aria-label="やり直す"
+                    title="やり直す (Ctrl+Shift+Z)"
+                  >
                     <Icon name="redo" />
                   </Tab>
-                  <Tab className="b-tab--icon hide-paint-close" tilt={3} onClick={closePaint} aria-label="編集を閉じる">×</Tab>
+                  <Tab
+                    className="b-tab--icon hide-paint-close"
+                    tilt={3}
+                    onClick={closePaint}
+                    aria-label="編集を閉じる"
+                  >
+                    ×
+                  </Tab>
                 </div>
               </div>
               <div className="hide-mode-stack">
-                <div className={`hide-paint-row${editingJoints ? "" : " is-inactive"}`}
-                  aria-hidden={!editingJoints}>
-                  <div className="hide-paint-group" role="group" aria-label="全体の角度">
+                <div
+                  className={`hide-paint-row${editingJoints ? "" : " is-inactive"}`}
+                  aria-hidden={!editingJoints}
+                >
+                  <div
+                    className="hide-paint-group"
+                    role="group"
+                    aria-label="全体の角度"
+                  >
                     <span className="hide-paint-label">全体の角度</span>
-                    <Tab className="b-tab--icon" onClick={() => rotate(-ROTATE_STEP)} title={`左に${ROTATE_STEP}度回す`} aria-label="左に回す">
+                    <Tab
+                      className="b-tab--icon"
+                      onClick={() => rotate(-ROTATE_STEP)}
+                      title={`左に${ROTATE_STEP}度回す`}
+                      aria-label="左に回す"
+                    >
                       <Icon name="rotateLeft" />
                     </Tab>
-                    <Tab className="rotation-value" onClick={() => changeRotation(0)} title="クリックでまっすぐに戻す"
-                      aria-label={`角度 ${active.rotation}度。まっすぐに戻す`}>
+                    <Tab
+                      className="rotation-value"
+                      onClick={() => changeRotation(0)}
+                      title="クリックでまっすぐに戻す"
+                      aria-label={`角度 ${active.rotation}度。まっすぐに戻す`}
+                    >
                       {active.rotation}°
                     </Tab>
-                    <Tab className="b-tab--icon" onClick={() => rotate(ROTATE_STEP)} title={`右に${ROTATE_STEP}度回す`} aria-label="右に回す">
+                    <Tab
+                      className="b-tab--icon"
+                      onClick={() => rotate(ROTATE_STEP)}
+                      title={`右に${ROTATE_STEP}度回す`}
+                      aria-label="右に回す"
+                    >
                       <Icon name="rotateRight" />
                     </Tab>
                   </div>
                 </div>
-                <label className={`hide-paint-size${editingJoints ? " is-inactive" : ""}`}
-                  aria-hidden={editingJoints}>
+                <label
+                  className={`hide-paint-size${editingJoints ? " is-inactive" : ""}`}
+                  aria-hidden={editingJoints}
+                >
                   <span className="hide-paint-label">太さ</span>
-                  <Range color="hide" min={0.2} max={12} step={0.2} value={size}
-                    onChange={(e) => setSize(Number(e.target.value))} />
+                  <Range
+                    color="hide"
+                    min={0.2}
+                    max={12}
+                    step={0.2}
+                    value={size}
+                    onChange={(e) => setSize(Number(e.target.value))}
+                  />
                   <span className="hide-paint-size-value">{size}</span>
                 </label>
               </div>
             </div>
             {/*<div className="hide-paint-surface" ref={paintSurfaceRef}>
-              <iframe
+              <img
                 ref={paintBackgroundRef}
                 className="hide-paint-background"
-                title="配置場所の背景"
-                src={`/sites/${siteId}`}
-                sandbox="allow-same-origin"
-                width={stageRef.current.size.width}
-                height={stageRef.current.size.height}
-                tabIndex={-1}
+                alt=""
+                src={siteImageUrl(siteId)}
+                style={{
+                  width: stageRef.current.size.width,
+                  height: stageRef.current.size.height,
+                }}
+                draggable={false}
                 aria-hidden="true"
                 onLoad={() => setPaintBackgroundReady(true)}
               />
@@ -1388,76 +1802,128 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
             </div>*/}
             {/* 操作欄は同じ領域に重ね、非表示の欄も高さを確保する。 */}
             <div className="hide-mode-stack hide-paint-details">
-              <div className={tool === "pen" ? undefined : "is-inactive"}
-                aria-hidden={tool !== "pen"}>
-                <InlineColorPicker color={color} onChange={(value) => { if (canEdit()) setColor(value); }}>
+              <div
+                className={tool === "pen" ? undefined : "is-inactive"}
+                aria-hidden={tool !== "pen"}
+              >
+                <InlineColorPicker
+                  color={color}
+                  onChange={(value) => {
+                    if (canEdit()) setColor(value);
+                  }}
+                >
                   {hasEyeDropper && (
                     <Tab onClick={pickColor} title="配置場所の背景から色を拾う">
                       <Icon name="eyedropper" /> 色をとる
                     </Tab>
                   )}
-                  <Tab onClick={() => editPaint("fillAll", color)} title="全体を今の色で1回塗る">
+                  <Tab
+                    onClick={() => editPaint("fillAll", color)}
+                    title="全体を今の色で1回塗る"
+                  >
                     <Icon name="fill" /> 全体塗り
                   </Tab>
-                  <Tab onClick={resetColor} title="塗った色をすべて消して白に戻す">
+                  <Tab
+                    onClick={resetColor}
+                    title="塗った色をすべて消して白に戻す"
+                  >
                     色をリセット
                   </Tab>
                 </InlineColorPicker>
               </div>
-              <div className={`hide-joint-help${editingJoints ? "" : " is-inactive"}`}
-                aria-hidden={!editingJoints}>
-                <p>ひじ・ひざで向きを、手首・足首で曲がり具合を調整できます。黄緑の点をドラッグするか、選んだ関節を矢印キーで動かしてください。</p>
+              <div
+                className={`hide-joint-help${editingJoints ? "" : " is-inactive"}`}
+                aria-hidden={!editingJoints}
+              >
+                <p>
+                  ひじ・ひざで向きを、手首・足首で曲がり具合を調整できます。黄緑の点をドラッグするか、選んだ関節を矢印キーで動かしてください。
+                </p>
                 <Tab onClick={resetPoseAndRotation}>ポーズ・角度をリセット</Tab>
               </div>
-              <p className={`hide-eraser-help${tool === "eraser" ? "" : " is-inactive"}`}
-                aria-hidden={tool !== "eraser"}>
+              <p
+                className={`hide-eraser-help${tool === "eraser" ? "" : " is-inactive"}`}
+                aria-hidden={tool !== "eraser"}
+              >
                 ドラッグした部分を白に戻します。
               </p>
             </div>
             <footer className="hide-paint-footer">
-              <Sticker size="s" color="hide" tilt={-2} onClick={closePaint}>完了</Sticker>
+              <Sticker size="s" color="hide" tilt={-2} onClick={closePaint}>
+                完了
+              </Sticker>
             </footer>
           </div>
         </aside>
       )}
 
       {showHelp && (
-        <Modal tapes={["hide", "accent"]} className="hide-help" aria-labelledby="hide-help-title" onBackdropClick={() => setShowHelp(false)}>
+        <Modal
+          tapes={["hide", "accent"]}
+          className="hide-help"
+          aria-labelledby="hide-help-title"
+          onBackdropClick={() => setShowHelp(false)}
+        >
           <div className="b-modal__head">
-            <h2 id="hide-help-title" className="b-modal__title">隠れるモードの遊び方</h2>
-            <Tab tilt={3} aria-label="閉じる" onClick={() => setShowHelp(false)}>×</Tab>
+            <h2 id="hide-help-title" className="b-modal__title">
+              隠れるモードの遊び方
+            </h2>
+            <Tab
+              tilt={3}
+              aria-label="閉じる"
+              onClick={() => setShowHelp(false)}
+            >
+              ×
+            </Tab>
           </div>
           <p>
             人型のカメレオンをページのどこかに置き、背景になじむように色を塗って隠しましょう。
             「ここに隠れる！」を押すと保存され、見つけるモードで他の人に探してもらえます。
           </p>
-          <p>隠す制限時間は{HIDE_TIME_LIMIT_SEC / 60}分です。時間が来ると編集が終了し、その時点の状態で保存できます。</p>
+          <p>
+            隠す制限時間は{HIDE_TIME_LIMIT_SEC / 60}
+            分です。時間が来ると編集が終了し、その時点の状態で保存できます。
+          </p>
           <h3>ツール</h3>
           <dl className="hide-help-tools">
             {TOOLS.map((t, index) => (
               <div key={t.key}>
-                <dt><span className="b-tab b-fill--sub" style={tiltStyle(index % 2 ? 1.5 : -1.5)}><Icon name={t.key} /> {t.label}</span></dt>
+                <dt>
+                  <span
+                    className="b-tab b-fill--sub"
+                    style={tiltStyle(index % 2 ? 1.5 : -1.5)}
+                  >
+                    <Icon name={t.key} /> {t.label}
+                  </span>
+                </dt>
                 <dd>{t.hint}</dd>
               </div>
             ))}
           </dl>
           <h3>その他</h3>
           <ul className="hide-help-list">
-            <li>「体型」で細め・標準・太めを切り替えられます。塗りと関節のポーズは引き継がれます</li>
             <li>
-              「ポーズ・角度」の画面で、<Icon name="rotateLeft" /> <Icon name="rotateRight" /> を押すと全体の角度を
-              {ROTATE_STEP}度ずつ調整できます。角度の数字を押すとまっすぐに戻ります
+              「体型」で細め・標準・太めを切り替えられます。塗りと関節のポーズは引き継がれます
             </li>
-            <li>Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift を押しながらだと10pxずつ移動します</li>
+            <li>
+              「ポーズ・角度」の画面で、
+              <Icon name="rotateLeft" /> <Icon name="rotateRight" />{" "}
+              を押すと全体の角度を
+              {ROTATE_STEP}
+              度ずつ調整できます。角度の数字を押すとまっすぐに戻ります
+            </li>
+            <li>
+              Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift
+              を押しながらだと10pxずつ移動します
+            </li>
           </ul>
         </Modal>
       )}
 
       {/* タイムアップ時、または手動で「ここに隠れる」を押したときの名前入力モーダル */}
       {(timeUp || showSaveModal) && !savedId && (
-        <Modal 
-          tapes={["hide", null]} 
-          className="hide-timeup" 
+        <Modal
+          tapes={["hide", null]}
+          className="hide-timeup"
           aria-labelledby="hide-timeup-title"
           /* 手動保存のときだけ、モーダルの外側をクリックして閉じられるようにする */
           onBackdropClick={() => !timeUp && setShowSaveModal(false)}
@@ -1466,32 +1932,69 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
             {timeUp ? "タイムアップ！" : "隠れる準備完了！"}
           </h2>
           <p>
-            {timeUp 
-              ? <>3分が経過したので、編集を終了しました。<br />今の色・ポーズ・場所で隠せます。</> 
-              : <>この場所で隠れますか？<br />ランキングに登録する名前を決めてください。</>
-            }
+            {timeUp ? (
+              <>
+                3分が経過したので、編集を終了しました。
+                <br />
+                今の色・ポーズ・場所で隠せます。
+              </>
+            ) : (
+              <>
+                この場所で隠れますか？
+                <br />
+                ランキングに登録する名前を決めてください。
+              </>
+            )}
           </p>
-          <input type="text" className="b-input hide-timeup-name" aria-label="カメレオンの名前"
-  maxLength={20} value={name} onChange={(e) => setName(e.target.value)}
-  onFocus={(e) => e.target.select()}
-  onKeyDown={(e) => { if (e.key === "Enter" && name.trim() && !saving) save(); }}
-  disabled={saving} autoFocus />
-          {error && <p className="b-alert" role="alert">{error}</p>}
+          <input
+            type="text"
+            className="b-input hide-timeup-name"
+            aria-label="カメレオンの名前"
+            maxLength={20}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && name.trim() && !saving) save();
+            }}
+            disabled={saving}
+            autoFocus
+          />
+          {error && (
+            <p className="b-alert" role="alert">
+              {error}
+            </p>
+          )}
           <div className="b-modal__actions">
             {/* 手動保存のときだけ「戻る」ボタンを表示 */}
             {!timeUp && (
-              <Sticker tilt={2} onClick={() => setShowSaveModal(false)}>戻る</Sticker>
+              <Sticker tilt={2} onClick={() => setShowSaveModal(false)}>
+                戻る
+              </Sticker>
             )}
             {/* タイムアップのときだけ「ホームへ」「もう一度」を表示 */}
             {timeUp && (
               <>
-                <Sticker as="a" href="#/" tilt={2}>ホームへ</Sticker>
-                <Sticker as="a" href={`#/hide?site=${siteId}&t=${Date.now()}`} tilt={-1.5}>もう一度</Sticker>
+                <Sticker as="a" href="#/" tilt={2}>
+                  ホームへ
+                </Sticker>
+                <Sticker
+                  as="a"
+                  href={`#/hide?site=${siteId}&t=${Date.now()}`}
+                  tilt={-1.5}
+                >
+                  もう一度
+                </Sticker>
               </>
             )}
-            
+
             {/* 空欄 (!name.trim()) の時は保存ボタンを押せないようにする */}
-            <Sticker color="hide" tilt={-2} onClick={save} disabled={saving || !name.trim()}>
+            <Sticker
+              color="hide"
+              tilt={-2}
+              onClick={save}
+              disabled={saving || !name.trim()}
+            >
               {saving ? "保存中…" : "この状態で隠す"}
             </Sticker>
           </div>
@@ -1500,16 +2003,33 @@ const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x
       {savedId && (
         <Modal tapes={["hide", "find"]} aria-labelledby="hide-saved-title">
           <div className="hide-saved-head">
-            <span style={tiltStyle(-6)}><FigureIcon className="hide-saved-figure" width={34} height={64} /></span>
-            <h2 id="hide-saved-title" className="b-modal__title">隠れました！</h2>
+            <span style={tiltStyle(-6)}>
+              <FigureIcon
+                className="hide-saved-figure"
+                width={34}
+                height={64}
+              />
+            </span>
+            <h2 id="hide-saved-title" className="b-modal__title">
+              隠れました！
+            </h2>
           </div>
           <p>
-            「{name.trim()}」がページに潜みました。<br />
+            「{name.trim()}」がページに潜みました。
+            <br />
             何人に探され、何人に見つかったかはホームで確認できます。
           </p>
           <div className="b-modal__actions">
-            <Sticker as="a" href={`#/hide?site=${siteId}&t=${Date.now()}`} tilt={2}>もう一人隠す</Sticker>
-            <Sticker as="a" href="#/" color="hide" tilt={-2}>ホームへ</Sticker>
+            <Sticker
+              as="a"
+              href={`#/hide?site=${siteId}&t=${Date.now()}`}
+              tilt={2}
+            >
+              もう一人隠す
+            </Sticker>
+            <Sticker as="a" href="#/" color="hide" tilt={-2}>
+              ホームへ
+            </Sticker>
           </div>
         </Modal>
       )}

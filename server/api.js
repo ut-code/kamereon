@@ -3,6 +3,41 @@ import { SITES } from './sites.js';
 
 const TIME_LIMIT_SEC = 180;
 const MAX_IMAGE_BYTES = 400_000;
+const GAME_CANDIDATES = 300; // 重ならない組み合わせを探すために、ランダムな順で読む候補の数
+const PICK_ATTEMPTS = 30; // 候補の順番を変えて選び直す回数。一番多く選べた組み合わせを使う
+
+// 2つの矩形（相対座標）が重なるか。辺が接しているだけなら重ならないとみなす
+const overlaps = (a, b) =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+// ランダムな順の候補から、他のカメレオンと重ならないものを順に選ぶ。
+function pickOnce(candidates, limit) {
+  const picked = [];
+  const taken = [];
+  for (const c of candidates) {
+    const rect = { x: c.x, y: c.y, w: c.w, h: c.h };
+    if (taken.some((t) => overlaps(rect, t))) continue;
+    picked.push(c.id);
+    taken.push(rect);
+    if (picked.length === limit) break;
+  }
+  return picked;
+}
+
+// 混み合っていると先に選んだものが邪魔をして数がそろわないことがあるので、順番を混ぜ直して何度か試す
+function pickNonOverlapping(candidates, limit) {
+  let best = pickOnce(candidates, limit);
+  const order = [...candidates];
+  for (let i = 1; i < PICK_ATTEMPTS && best.length < Math.min(limit, candidates.length); i++) {
+    for (let j = order.length - 1; j > 0; j--) {
+      const k = Math.floor(Math.random() * (j + 1));
+      [order[j], order[k]] = [order[k], order[j]];
+    }
+    const picked = pickOnce(order, limit);
+    if (picked.length > best.length) best = picked;
+  }
+  return best;
+}
 
 const route = (handler) => (req, res, next) => {
   Promise.resolve(handler(req, res)).catch(next);
@@ -22,9 +57,15 @@ const toChameleon = (row) => ({
   createdAt: row.created_at,
 });
 
+// 位置 (x, y) と大きさ (w, h) はページ画像に対する相対座標 (0〜1)。
+// ブラウザや端末の違いで表示サイズが変わっても、画像上の同じ場所を指す。
+const isRatio = (v) => Number.isFinite(v) && v >= 0 && v <= 1;
+const validRect = ({ x, y, w, h }) =>
+  [x, y, w, h].every(isRatio) && w > 0 && h > 0 && x + w <= 1.001 && y + h <= 1.001;
+
 const validFigure = (figure) => {
-  const { x, y, w, h, image } = figure ?? {};
-  return [x, y, w, h].every(Number.isFinite) &&
+  const { image } = figure ?? {};
+  return validRect(figure ?? {}) &&
     typeof image === 'string' &&
     image.startsWith('data:image/png;base64,') &&
     image.length <= MAX_IMAGE_BYTES;
@@ -83,7 +124,7 @@ export function createApi(db) {
     if (typeof site !== 'string' || !Object.hasOwn(SITES, site)) {
       return res.status(400).json({ error: 'unknown site' });
     }
-    if (![x, y, w, h].every(Number.isFinite)) return res.status(400).json({ error: 'invalid position' });
+    if (!validRect({ x, y, w, h })) return res.status(400).json({ error: 'invalid position' });
     if (!validFigure({ x, y, w, h, image })) return res.status(400).json({ error: 'invalid image' });
     const baseName = String(name ?? '').trim().slice(0, 20);
     if (!baseName) return res.status(400).json({ error: 'ゲームに表示する名前を入力してください' });
@@ -92,7 +133,7 @@ export function createApi(db) {
     await db.prepare(`
       INSERT INTO chameleons (id, site, name, x, y, w, h, image, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, site, cleanName, x, y, Math.round(w), Math.round(h), image, new Date().toISOString()).run();
+    `).bind(id, site, cleanName, x, y, w, h, image, new Date().toISOString()).run();
     res.status(201).json({ id });
   }));
 
@@ -105,13 +146,21 @@ export function createApi(db) {
     const excludedIds = Array.isArray(exclude)
       ? exclude.filter((id) => typeof id === 'string').slice(0, 200)
       : [];
+    // まず位置と大きさだけをランダムな順で読み、互いに重ならないカメレオンを選ぶ（画像は重いので読まない）。
     // ID の配列は1つの値で渡し、D1 のバインド変数数の上限内に収める。
-    const { results } = await db.prepare(`
-      SELECT * FROM chameleons WHERE site = ?
+    const { results: candidates } = await db.prepare(`
+      SELECT id, x, y, w, h FROM chameleons WHERE site = ?
       AND id NOT IN (SELECT value FROM json_each(?)) ORDER BY RANDOM() LIMIT ?
-    `).bind(site, JSON.stringify(excludedIds), limit).all();
+    `).bind(site, JSON.stringify(excludedIds), GAME_CANDIDATES).all();
+    const pickedIds = pickNonOverlapping(candidates, limit);
+    const ids = JSON.stringify(pickedIds);
+    const { results: rows } = await db.prepare(`
+      SELECT * FROM chameleons WHERE id IN (SELECT value FROM json_each(?))
+    `).bind(ids).all();
+    // 抽選した順に並べ直す
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const results = pickedIds.map((id) => byId.get(id)).filter(Boolean);
     const gameId = crypto.randomUUID();
-    const ids = JSON.stringify(results.map((row) => row.id));
     await db.batch([
       db.prepare('INSERT INTO games (id, site, chameleon_ids, started_at) VALUES (?, ?, ?, ?)')
         .bind(gameId, site, ids, new Date().toISOString()),

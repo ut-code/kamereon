@@ -1,4 +1,5 @@
 // 隠れる舞台となるWebページの一覧（クライアントとサーバーの両方から使う）
+// width: 画像を表示するときの幅 (CSS px)。カメレオンの座標は画像に対する相対値 (0〜1) で保存する。
 export const SITES = {
   utcode: {
     title: 'ut.code(); ホームページ',
@@ -39,3 +40,9 @@ export const SITES = {
     width: 1280,
   },
 };
+
+// 各サイトは scripts/render-sites.js で1枚の画像に書き出したものを表示する。
+// HTML を各ブラウザで描画するとフォントや端末の違いでレイアウトが微妙にずれ、カメレオンの位置もずれるため。
+export const siteImageUrl = (id) => `/sites/${encodeURIComponent(id)}.webp`;
+// ページ選択のプレビュー用。ページ上端 1280×1600px を幅 480px に縮小したもの
+export const siteThumbUrl = (id) => `/sites/${encodeURIComponent(id)}-thumb.webp`;

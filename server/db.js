@@ -31,6 +31,9 @@ if (!gameCols.includes('finished')) {
   sqlite.exec(`ALTER TABLE games ADD COLUMN finished INTEGER NOT NULL DEFAULT 0`);
 }
 
+// 座標を相対値 (0〜1) に変換する（未変換の行だけが対象なので毎回実行してよい）
+sqlite.exec(readFileSync(new URL('../migrations/0002_relative_coords.sql', import.meta.url), 'utf8'));
+
 // Node.js での開発にも D1 と同じ読み書きのインターフェースを提供する。
 function prepare(sql, values = []) {
   const statement = sqlite.prepare(sql);
