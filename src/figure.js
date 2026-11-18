@@ -1,7 +1,7 @@
 // 白い人型（カメレオン）のシルエット定義
 const POSE_W = 72; // ポーズ座標系の大きさ
 const POSE_H = 160;
-const FIG_RATIO = 0.8; // ポーズ座標 → 表示サイズ (CSS px) の倍率
+export const FIG_RATIO = 1.3; // ポーズ座標 → 表示サイズ (CSS px) の倍率
 export const FIG_SCALE = 2; // 内部解像度の倍率（細かく塗れるように）
 export const ROTATE_STEP = 15; // 回転の刻み (度)
 
