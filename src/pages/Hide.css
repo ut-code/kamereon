@@ -4,7 +4,7 @@
  * 舞台・ダイアログ・拡大表示・色選びは座標を測るので傾けない。傾けるのは帯の中の札とボタンだけ
  */
 
-/* ---- 上の帯。上の段はモード名・残り時間と保存、下の段は道具・体型・デコイ ---- */
+/* ---- 上の帯。上の段はモード名・残り時間と保存、下の段は道具・体型・枠の表示 ---- */
 
 .b-tools {
   position: relative;
@@ -84,7 +84,7 @@
 .b-hint strong { padding: 2px 10px; background: var(--hide); font-weight: 800; }
 .b-hint__error { padding: 2px 10px; background: var(--ink); color: var(--paper); font-weight: 800; }
 
-/* ---- 舞台の上の人型（本体とデコイ） ---- */
+/* ---- 舞台の上の人型 ---- */
 
 .chameleon {
   position: absolute;
@@ -92,9 +92,8 @@
   touch-action: none;
   image-rendering: auto;
 }
-/* 枠：本体は桃色、デコイは紫。選んでいるものは実線で太く */
+/* 枠は桃色の破線。選んでいるときは実線で太く */
 .chameleon.outlined { outline: 2px dashed var(--hide); outline-offset: 2px; }
-.chameleon.outlined.decoy { outline-color: var(--camo); }
 .chameleon.outlined.active { outline-style: solid; outline-width: 3px; }
 .chameleon.tool-move { cursor: grab; }
 .chameleon.tool-move:active { cursor: grabbing; }
@@ -117,7 +116,6 @@
   transform: translateY(calc(-100% - 8px)) rotate(-3deg);
   transform-origin: left bottom;
 }
-.fig-tag.decoy { background: var(--camo); color: var(--paper); }
 
 /* 持ち上げて運んでいる間の姿（手足がぶらぶら揺れる） */
 .hide-carried-figure { position: absolute; z-index: 2; pointer-events: none; user-select: none; }

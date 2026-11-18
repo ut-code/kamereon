@@ -3,7 +3,6 @@ import { SITES } from './sites.js';
 
 const TIME_LIMIT_SEC = 180;
 const MAX_IMAGE_BYTES = 400_000;
-const MAX_DECOYS = 3;
 const GAME_CANDIDATES = 300; // 重ならない組み合わせを探すために、ランダムな順で読む候補の数
 const PICK_ATTEMPTS = 30; // 候補の順番を変えて選び直す回数。一番多く選べた組み合わせを使う
 
@@ -11,16 +10,14 @@ const PICK_ATTEMPTS = 30; // 候補の順番を変えて選び直す回数。一
 const overlaps = (a, b) =>
   a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
-// ランダムな順の候補から、本体・デコイのどれもが他のカメレオンの本体・デコイと重ならないものを順に選ぶ。
-// 同じカメレオンの本体とデコイどうしは、隠した人が置いた配置なので重なっていてもよい。
+// ランダムな順の候補から、すでに選んだカメレオンと重ならないものを順に選ぶ
 function pickOnce(candidates, limit) {
   const picked = [];
   const taken = [];
   for (const c of candidates) {
-    const rects = [{ x: c.x, y: c.y, w: c.w, h: c.h }, ...JSON.parse(c.decoy_rects ?? '[]')];
-    if (rects.some((r) => taken.some((t) => overlaps(r, t)))) continue;
+    if (taken.some((t) => overlaps(c, t))) continue;
     picked.push(c.id);
-    taken.push(...rects);
+    taken.push(c);
     if (picked.length === limit) break;
   }
   return picked;
@@ -45,7 +42,7 @@ const route = (handler) => (req, res, next) => {
   Promise.resolve(handler(req, res)).catch(next);
 };
 
-const toChameleon = (row, { withDecoys = false } = {}) => ({
+const toChameleon = (row) => ({
   id: row.id,
   site: row.site,
   name: row.name,
@@ -54,7 +51,6 @@ const toChameleon = (row, { withDecoys = false } = {}) => ({
   w: row.w,
   h: row.h,
   image: row.image,
-  ...(withDecoys && { decoys: JSON.parse(row.decoys ?? '[]') }),
   searched: row.searched,
   found: row.found,
   createdAt: row.created_at,
@@ -108,29 +104,18 @@ export function createApi(db) {
   }));
 
   api.post('/chameleons', route(async (req, res) => {
-    const { site, name, x, y, w, h, image, decoys = [] } = req.body ?? {};
+    const { site, name, x, y, w, h, image } = req.body ?? {};
     if (typeof site !== 'string' || !Object.hasOwn(SITES, site)) {
       return res.status(400).json({ error: 'unknown site' });
     }
     if (!validRect({ x, y, w, h })) return res.status(400).json({ error: 'invalid position' });
     if (!validFigure({ x, y, w, h, image })) return res.status(400).json({ error: 'invalid image' });
-    if (!Array.isArray(decoys) || decoys.length > MAX_DECOYS || !decoys.every(validFigure)) {
-      return res.status(400).json({ error: 'invalid decoys' });
-    }
-    const cleanDecoys = decoys.map((decoy) => ({
-      x: decoy.x,
-      y: decoy.y,
-      w: decoy.w,
-      h: decoy.h,
-      image: decoy.image,
-    }));
     const cleanName = String(name ?? '').trim().slice(0, 20) || 'ななしのカメレオン';
     const id = crypto.randomUUID();
     await db.prepare(`
-      INSERT INTO chameleons (id, site, name, x, y, w, h, image, decoys, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(id, site, cleanName, x, y, w, h, image,
-      JSON.stringify(cleanDecoys), new Date().toISOString()).run();
+      INSERT INTO chameleons (id, site, name, x, y, w, h, image, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(id, site, cleanName, x, y, w, h, image, new Date().toISOString()).run();
     res.status(201).json({ id });
   }));
 
@@ -146,19 +131,15 @@ export function createApi(db) {
     // まず位置と大きさだけをランダムな順で読み、互いに重ならないカメレオンを選ぶ（画像は重いので読まない）。
     // ID の配列は1つの値で渡し、D1 のバインド変数数の上限内に収める。
     const { results: candidates } = await db.prepare(`
-      SELECT id, x, y, w, h, (
-        SELECT json_group_array(json_object(
-          'x', json_extract(d.value, '$.x'), 'y', json_extract(d.value, '$.y'),
-          'w', json_extract(d.value, '$.w'), 'h', json_extract(d.value, '$.h')))
-        FROM json_each(chameleons.decoys) AS d
-      ) AS decoy_rects
-      FROM chameleons WHERE site = ?
+      SELECT id, x, y, w, h FROM chameleons WHERE site = ?
       AND id NOT IN (SELECT value FROM json_each(?)) ORDER BY RANDOM() LIMIT ?
     `).bind(site, JSON.stringify(excludedIds), GAME_CANDIDATES).all();
     const pickedIds = pickNonOverlapping(candidates, limit);
     const ids = JSON.stringify(pickedIds);
+    // 以前のデコイ（decoys 列）は使わないので読まない
     const { results: rows } = await db.prepare(`
-      SELECT * FROM chameleons WHERE id IN (SELECT value FROM json_each(?))
+      SELECT id, site, name, x, y, w, h, image, searched, found, created_at
+      FROM chameleons WHERE id IN (SELECT value FROM json_each(?))
     `).bind(ids).all();
     // 抽選した順に並べ直す
     const byId = new Map(rows.map((row) => [row.id, row]));
@@ -175,7 +156,7 @@ export function createApi(db) {
     res.status(201).json({
       gameId,
       timeLimit: TIME_LIMIT_SEC,
-      chameleons: results.map((row) => toChameleon(row, { withDecoys: true })),
+      chameleons: results.map(toChameleon),
     });
   }));
 

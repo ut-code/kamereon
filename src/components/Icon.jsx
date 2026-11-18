@@ -32,23 +32,6 @@ const ICONS = {
       <path d="M21 3v5h-5" />
     </>
   ),
-  decoy: (
-    <>
-      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M19 8v6" />
-      <path d="M22 11h-6" />
-    </>
-  ),
-  trash: (
-    <>
-      <path d="M3 6h18" />
-      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-      <path d="M10 11v6" />
-      <path d="M14 11v6" />
-    </>
-  ),
   undo: (
     <>
       <path d="M9 14 4 9l5-5" />

@@ -366,7 +366,6 @@ function InlineColorPicker({ color, onChange, children }) {
 }
 
 const AUTO_SCROLL_EDGE = 48; // 見えている範囲の上端・下端からこの距離（画面上の px）に入ったら自動スクロール
-const MAX_DECOYS = 3;
 const AUTO_SCROLL_MAX = 30; // 1フレームあたりの最大スクロール量 (px)
 const SHAKE_DISTANCE = 36; // 画面上の px。小さな手ぶれや表示倍率に左右されない。
 const SHAKE_TURN_WINDOW = 700;
@@ -374,8 +373,7 @@ const SHAKE_TURNS_TO_CALM = 4;
 const hasEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
 
 const MAIN = "main";
-const figLabel = (f, figs) =>
-  f.decoy ? `デコイ${figs.filter((g) => g.decoy).indexOf(f) + 1}` : "本体";
+const FIG_LABEL = "カメレオン";
 
 // 一方向への移動は数えず、十分な幅で素早く折り返した回数を数える。
 function trackShake(shake, point) {
@@ -409,7 +407,6 @@ export default function Hide({ siteId }) {
   const canvasRefs = useRef({});
   const painters = useRef({});
   const dragRef = useRef(null);
-  const nextKey = useRef(1);
   const paintDialogRef = useRef(null);
   const paintDialogDragRef = useRef(null);
   const paintDialogPositionRef = useRef(null);
@@ -427,7 +424,7 @@ export default function Hide({ siteId }) {
     new URLSearchParams(window.location.hash.split("?")[1]).get("body"),
   );
 
-  // 本体とデコイ。{ key, decoy, x, y, body, pose, rotation, joints }
+  // 隠れる人型（1体）。{ key, x, y, body, pose, rotation, joints }
   const [figs, setFigs] = useState([]);
   const [activeKey, setActiveKey] = useState(MAIN);
   const [tool, setTool] = useState("move");
@@ -449,7 +446,6 @@ export default function Hide({ siteId }) {
   const [savedAt, setSavedAt] = useState(null);
 
   const active = figs.find((f) => f.key === activeKey);
-  const decoyCount = figs.filter((f) => f.decoy).length;
   activeRef.current = active;
   const paintSize = active ? figureBounds(active) : getFigureBounds("stand", 0);
   const editingJoints = tool === "joints";
@@ -668,8 +664,8 @@ export default function Hide({ siteId }) {
     };
   };
 
-  // 今見えている範囲の中心（横に少しずらせる）に新しい人型を置く
-  const newFig = (key = MAIN, decoy = false, offset = 0) => {
+  // 今見えている範囲の中心に新しい人型を置く
+  const newFig = (key = MAIN) => {
     const c = stageRef.current.viewCenter();
     const body =
       active?.body ??
@@ -680,12 +676,11 @@ export default function Hide({ siteId }) {
     const s = getFigureBounds("stand", 0, joints, body);
     return {
       key,
-      decoy,
       body,
       pose: "stand",
       rotation: 0,
       joints,
-      ...clampPos({ x: c.x - s.w / 2 + offset, y: c.y - s.h / 2 }, s),
+      ...clampPos({ x: c.x - s.w / 2, y: c.y - s.h / 2 }, s),
     };
   };
 
@@ -696,26 +691,6 @@ export default function Hide({ siteId }) {
     setDeadline(deadlineRef.current);
     setNow(started);
     setFigs([newFig()]);
-  };
-
-  const addDecoy = () => {
-    if (!canEdit() || !figs.length || decoyCount >= MAX_DECOYS) return;
-    onPointerUp();
-    setSplashes([]);
-    const key = `decoy-${nextKey.current++}`;
-    const decoy = newFig(key, true, (decoyCount + 1) * 90);
-    setFigs((fs) => [...fs, decoy]);
-    setActiveKey(key);
-  };
-
-  const removeDecoy = () => {
-    if (!canEdit() || !active?.decoy) return;
-    onPointerUp();
-    setSplashes([]);
-    delete painters.current[active.key];
-    delete canvasRefs.current[active.key];
-    setFigs((fs) => fs.filter((f) => f.key !== active.key));
-    setActiveKey(MAIN);
   };
 
   // canvas が表示されたら Painter を作る（再描画では作り直さない）
@@ -1398,7 +1373,6 @@ export default function Hide({ siteId }) {
         site: siteId,
         name,
         ...toData(main),
-        decoys: figs.filter((f) => f.decoy).map(toData),
       });
       setSavedAt(submittedAt);
       setSavedId(id);
@@ -1412,7 +1386,7 @@ export default function Hide({ siteId }) {
 
   return (
     <div className="b-game">
-      {/* 上の段：ホーム・モード名・遊び方・残り時間と、元に戻す・名前・保存／下の段：道具・体型と、枠の表示・デコイ */}
+      {/* 上の段：ホーム・モード名・遊び方・残り時間と、元に戻す・名前・保存／下の段：道具・体型と、枠の表示 */}
       <header className="b-tools">
         <div className="b-tools__row">
           <div className="b-tools__group">
@@ -1518,35 +1492,17 @@ export default function Hide({ siteId }) {
             >
               枠を表示
             </Check>
-            <span className="b-tools__sep" aria-hidden="true" />
-            <Tab
-              disabled={
-                editingLocked || !figs.length || decoyCount >= MAX_DECOYS
-              }
-              onClick={addDecoy}
-              title="見つける人をだますニセモノを置く"
-            >
-              <Icon name="decoy" /> デコイを追加 ({decoyCount}/{MAX_DECOYS})
-            </Tab>
-            {active?.decoy && (
-              <Tab disabled={editingLocked} onClick={removeDecoy}>
-                <Icon name="trash" /> デコイを削除
-              </Tab>
-            )}
           </div>
         </div>
       </header>
-      {/* 帯の下の1行。編集中の人型と位置。デコイを置いたら注意を添える */}
+      {/* 帯の下の1行。編集中の人型と位置 */}
       <div className="b-hint">
         {active && (
           <strong>
-            {timeUp ? "編集終了" : `${figLabel(active, figs)}を編集中`}
+            {timeUp ? "編集終了" : `${FIG_LABEL}を編集中`}
           </strong>
         )}
         <span>位置: {active ? `(${active.x}, ${active.y})` : "-"}</span>
-        {decoyCount > 0 && (
-          <span>／　デコイをクリックした人は残り時間が減ります</span>
-        )}
         {error && (
           <span className="b-hint__error" role="alert">
             {error}
@@ -1566,7 +1522,6 @@ export default function Hide({ siteId }) {
                   "chameleon editable",
                   `tool-${tool}`,
                   outline && "outlined",
-                  f.decoy && "decoy",
                   f.key === activeKey && "active",
                   carry && "is-carried",
                 ]
@@ -1613,10 +1568,10 @@ export default function Hide({ siteId }) {
               )}
               {outline && !carry && (
                 <span
-                  className={`fig-tag ${f.decoy ? "decoy" : ""}`}
+                  className="fig-tag"
                   style={{ left: f.x, top: f.y }}
                 >
-                  {figLabel(f, figs)}
+                  {FIG_LABEL}
                 </span>
               )}
             </div>
@@ -1628,7 +1583,7 @@ export default function Hide({ siteId }) {
         <dialog
           ref={paintDialogRef}
           className="hide-paint-modal"
-          aria-label={`${figLabel(active, figs)}の色塗り・ポーズ調整`}
+          aria-label={`${FIG_LABEL}の色塗り・ポーズ調整`}
           onCancel={(e) => {
             e.preventDefault();
             closePaint();
@@ -2003,10 +1958,6 @@ export default function Hide({ siteId }) {
               度ずつ調整できます。角度の数字を押すとまっすぐに戻ります
             </li>
             <li>
-              <Icon name="decoy" /> デコイ（ニセモノ）を最大{MAX_DECOYS}
-              体まで置けます。デコイをクリックした人は残り時間が減ります
-            </li>
-            <li>
               Ctrl+Z で元に戻す、Ctrl+Shift+Z でやり直し。矢印キーは Shift
               を押しながらだと10pxずつ移動します
             </li>
@@ -2078,12 +2029,6 @@ export default function Hide({ siteId }) {
           </div>
           <p>
             「{name.trim() || "ななしのカメレオン"}」がページに潜みました。
-            {decoyCount > 0 && (
-              <>
-                <br />
-                デコイ {decoyCount} 体も配置しました。
-              </>
-            )}
             <br />
             何人に探され、何人に見つかったかはホームで確認できます。
           </p>

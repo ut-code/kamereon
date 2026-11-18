@@ -7,7 +7,7 @@ mkdirSync(dataDir, { recursive: true });
 const sqlite = new DatabaseSync(new URL('kamereon.db', dataDir).pathname);
 sqlite.exec(readFileSync(new URL('../migrations/0001_initial.sql', import.meta.url), 'utf8'));
 
-// 既存DBへの列追加：デコイ（[{x, y, w, h, image}] の JSON）
+// 既存DBへの列追加：デコイ（[{x, y, w, h, image}] の JSON）。デコイ機能は削除したので使わないが、古いDB・移行用SQLとの互換のため列は残す
 const columns = sqlite.prepare('PRAGMA table_info(chameleons)').all().map((c) => c.name);
 if (!columns.includes('decoys')) {
   sqlite.exec(`ALTER TABLE chameleons ADD COLUMN decoys TEXT NOT NULL DEFAULT '[]'`);
