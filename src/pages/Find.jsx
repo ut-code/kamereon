@@ -7,6 +7,7 @@ import './Find.css';
 
 const ZOOMS = [1, 1.5, 2, 3];
 const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
+const DECOY_PENALTY_SEC = 10; // デコイをクリックしたときに減る時間
 const CLICK_COOLDOWN_MS = 5000; // フィールドをクリックしたあとのクールタイム
 const DEFAULT_TIME_LIMIT_SEC = 180; // 制限時間（server/api.js の TIME_LIMIT_SEC と同じ）。スタート前は game.timeLimit がまだ無いので、こちらを表示に使う
 const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。Find.css の .stage-overlay.seeking のカーソルと合わせる
@@ -29,7 +30,7 @@ async function loadFigure(src) {
   return { img, mask: { width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height).data } };
 }
 
-// まだ見つかっていないカメレオンを、ページ全体に敷き詰めた canvas タイルに描く。
+// まだ見つかっていないカメレオンとデコイを、ページ全体に敷き詰めた canvas タイルに描く。
 // 1体ずつ <img> にすると開発者ツールで要素を選ぶだけで位置が分かってしまうため、
 // どのタイルも同じ大きさ・同じ属性にして、要素からは場所が分からないようにする。
 // 何も描かないタイルは getContext しないので、描画用のメモリも確保されない。
@@ -162,6 +163,7 @@ export default function Find({ siteId }) {
   const [deadline, setDeadline] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [misses, setMisses] = useState([]);
+  const [tripped, setTripped] = useState([]); // 引っかかったデコイの key
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState('');
   const [cooldownUntil, setCooldownUntil] = useState(0); // この時刻まではクリックできない
@@ -201,7 +203,10 @@ export default function Find({ siteId }) {
       const { fromRelative } = stageRef.current;
       const g = {
         ...started,
-        chameleons: started.chameleons.map(fromRelative),
+        chameleons: started.chameleons.map((c) => ({
+          ...fromRelative(c),
+          decoys: (c.decoys ?? []).map(fromRelative),
+        })),
       };
       if (g.chameleons.length === 0) {
         setPhase('empty');
@@ -215,11 +220,15 @@ export default function Find({ siteId }) {
           isFound: false,
         };
       });
-      const targets = g.chameleons.map((c) => [c.id, c.image]);
+      // デコイは { ...位置, key, owner } に平らにしておく
+      const decoys = g.chameleons.flatMap((c) =>
+        (c.decoys ?? []).map((d, i) => ({ ...d, key: `${c.id}:${i}`, owner: c.name })),
+      );
+      const targets = [...g.chameleons.map((c) => [c.id, c.image]), ...decoys.map((d) => [d.key, d.image])];
       const loaded = await Promise.all(targets.map(([, image]) => loadFigure(image)));
       masksRef.current = Object.fromEntries(targets.map(([key], i) => [key, loaded[i].mask]));
       imagesRef.current = Object.fromEntries(targets.map(([key], i) => [key, loaded[i].img]));
-      setGame(g);
+      setGame({ ...g, decoys });
       setDeadline(Date.now() + g.timeLimit * 1000);
       setNow(Date.now());
       setPhase('playing');
@@ -278,7 +287,10 @@ export default function Find({ siteId }) {
     const hit = game.chameleons.find(
       (c) => !found.includes(c.id) && hits(c, masksRef.current[c.id], x, y),
     );
-    startCooldown(); // 当たり・外れのどちらでもクールタイムを発動する
+    const decoy = !hit && game.decoys.find(
+      (d) => !tripped.includes(d.key) && hits(d, masksRef.current[d.key], x, y),
+    );
+    startCooldown(); // 当たり・デコイ・外れのどれでもクールタイムを発動する
     if (hit) {
       setFound((f) => [...f, hit.id]);
       const hState = hideScoresRef.current[hit.id];
@@ -294,6 +306,12 @@ export default function Find({ siteId }) {
       setTimeout(() => {
         setAnimatingFound((a) => a.filter((id) => id !== hit.id));
       }, 2000);
+    } else if (decoy) {
+      setTripped((t) => [...t, decoy.key]);
+      setDeadline((d) => d - DECOY_PENALTY_SEC * 1000);
+      const miss = { id: Date.now() + Math.random(), x, y, decoy: true };
+      setMisses((m) => [...m, miss]);
+      setTimeout(() => setMisses((m) => m.filter((v) => v.id !== miss.id)), 1200);
     } else {
       const miss = { id: Date.now() + Math.random(), x, y };
       setMisses((m) => [...m, miss]);
@@ -306,13 +324,14 @@ export default function Find({ siteId }) {
   const showShadow = phase === 'playing' && aim;
   const shadowRadius = RETICLE_RADIUS_PX / zoom;
 
-  // まだ見つかっていない（＝場所を知られてはいけない）カメレオン。canvas タイルに描く
+  // まだ見つかっていない（＝場所を知られてはいけない）カメレオンとデコイ。canvas タイルに描く
   const secretFigures = useMemo(() => {
     if (phase !== 'playing' || !game) return [];
-    return game.chameleons
-      .filter((c) => !found.includes(c.id))
-      .map((c) => ({ key: c.id, x: c.x, y: c.y, w: c.w, h: c.h, img: imagesRef.current[c.id] }));
-  }, [phase, game, found]);
+    return [
+      ...game.chameleons.filter((c) => !found.includes(c.id)).map((c) => ({ ...c, key: c.id })),
+      ...game.decoys.filter((d) => !tripped.includes(d.key)),
+    ].map((f) => ({ key: f.key, x: f.x, y: f.y, w: f.w, h: f.h, img: imagesRef.current[f.key] }));
+  }, [phase, game, found, tripped]);
 
   const onMouseMove = (e) => {
     if (stageRef.current) {
@@ -477,8 +496,24 @@ export default function Find({ siteId }) {
             </div>
           );
         })}
+        {game?.decoys.map((d) => {
+          const isTripped = tripped.includes(d.key);
+          if (!over && !isTripped) return null;
+          return (
+            <div
+              key={d.key}
+              className={`chameleon-slot decoy ${isTripped ? 'tripped' : ''} ${over ? 'exposed' : ''}`}
+              style={{ left: d.x, top: d.y, width: d.w, height: d.h }}
+            >
+              <img src={d.image} alt="" draggable={false} />
+              <span className="slot-label">デコイ（{d.owner}）</span>
+            </div>
+          );
+        })}
         {misses.map((m) => (
-          <span key={m.id} className="miss-mark" style={{ left: m.x, top: m.y }}>×</span>
+          <span key={m.id} className={`miss-mark ${m.decoy ? 'decoy' : ''}`} style={{ left: m.x, top: m.y }}>
+            {m.decoy ? `デコイ！ −${DECOY_PENALTY_SEC}秒` : '×'}
+          </span>
         ))}
       </SiteStage>
 
@@ -503,9 +538,9 @@ export default function Find({ siteId }) {
           <div className="b-stats">
             <div className="b-fill--find" style={tiltStyle(-2)}><strong>最大5体</strong><span>潜んでいる</span></div>
             <div className="b-fill--accent" style={tiltStyle(1.5)}><strong>{fmt(DEFAULT_TIME_LIMIT_SEC)}</strong><span>制限時間</span></div>
-            <div className="b-fill--hide" style={tiltStyle(-1)}><strong>{CLICK_COOLDOWN_MS / 1000}秒</strong><span>クリック後の待ち時間</span></div>
+            <div className="b-fill--hide" style={tiltStyle(-1)}><strong>−{DECOY_PENALTY_SEC}秒</strong><span>デコイを押すと</span></div>
           </div>
-          <p className="b-modal__note">クリックするたびに{CLICK_COOLDOWN_MS / 1000}秒間はクリックできません（当たり・外れのどちらでも）</p>
+          <p className="b-modal__note">クリックするたびに{CLICK_COOLDOWN_MS / 1000}秒間はクリックできません（当たり・外れ・デコイのどれでも）</p>
           <label className="b-player-name">
             ハンターの名前
             <input
