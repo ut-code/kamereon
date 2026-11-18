@@ -297,11 +297,12 @@ export default function Find({ siteId }) {
           <Tab as="a" href="#/" tilt={-2}>← ホーム</Tab>
           <span className="b-hud__mode">見つける</span>
           <label className="b-hud__zoom">
-            <Icon name="search" size={18} />
-            <span className="b-sr-only">表示の倍率</span>
-            <Range min={1} max={3} step={0.1} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 110 }} />
-            <span className="b-hud__zoom-value">{Math.round(zoom * 100)}%</span>
-          </label>
+  <Icon name="search" size={18} />
+  <span>背景の拡大縮小</span>
+  <Range color="hide" min={1} max={4} step={0.1} value={zoom}
+    onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 110 }} />
+  <span className="b-hud__zoom-value">{Math.round(zoom * 100)}%</span>
+</label>
         </div>
         <div className="b-hud__center">
           {game && phase === 'playing' && (

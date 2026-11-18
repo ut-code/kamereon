@@ -65,15 +65,34 @@ const SiteStage = forwardRef(function SiteStage({ siteId, zoom = 1, onReady, ove
 
   // ズーム変更時、見ている中心がずれないようにスクロール位置を補正する
   const prevZoom = useRef(zoom);
-  useEffect(() => {
-    const el = scrollRef.current;
-    const ratio = zoom / prevZoom.current;
-    if (ratio !== 1) {
-      el.scrollLeft = (el.scrollLeft + el.clientWidth / 2) * ratio - el.clientWidth / 2;
-      el.scrollTop = (el.scrollTop + el.clientHeight / 2) * ratio - el.clientHeight / 2;
-    }
-    prevZoom.current = zoom;
-  }, [zoom]);
+const anchorRef = useRef(null); // 最後のマウス位置（スクロール領域内の座標）
+
+useEffect(() => {
+  const el = scrollRef.current;
+  const track = (e) => {
+    const r = el.getBoundingClientRect();
+    anchorRef.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  el.addEventListener("pointermove", track);
+  el.addEventListener("wheel", track, { passive: true });
+  return () => {
+    el.removeEventListener("pointermove", track);
+    el.removeEventListener("wheel", track);
+  };
+}, []);
+
+useEffect(() => {
+  const el = scrollRef.current;
+  const ratio = zoom / prevZoom.current;
+  if (ratio !== 1) {
+    // カーソルがあればその位置、なければ画面中心を固定点にする
+    const ax = anchorRef.current?.x ?? el.clientWidth / 2;
+    const ay = anchorRef.current?.y ?? el.clientHeight / 2;
+    el.scrollLeft = (el.scrollLeft + ax) * ratio - ax;
+    el.scrollTop = (el.scrollTop + ay) * ratio - ay;
+  }
+  prevZoom.current = zoom;
+}, [zoom]);
 
   if (!site) return <div className="stage-error">サイト「{siteId}」は登録されていません。</div>;
 

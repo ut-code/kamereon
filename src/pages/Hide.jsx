@@ -28,9 +28,7 @@ const TOOLS = [
 ];
 
 // 手足の可動域を収めつつ、カメレオンと周囲の背景に寄った表示にする。
-const JOINT_VIEW_SIZE = 160;
 const HIDE_TIME_LIMIT_SEC = 3 * 60;
-
 const formatTime = (seconds) => {
   const whole = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
@@ -242,6 +240,7 @@ const SHAKE_TURN_WINDOW = 700;
 const SHAKE_TURNS_TO_CALM = 4;
 const hasEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
 const MAIN = "main";
+const ZOOM_MIN = 1, ZOOM_MAX = 4;
 
 // 一方向への移動は数えず、十分な幅で素早く折り返した回数を数える。
 function trackShake(shake, point) {
@@ -278,11 +277,7 @@ export default function Hide({ siteId }) {
   const paintDialogRef = useRef(null);
   const paintDialogDragRef = useRef(null);
   const paintDialogPositionRef = useRef(null);
-  const paintCanvasRef = useRef(null);
-  const paintSurfaceRef = useRef(null);
-  const paintBackgroundRef = useRef(null);
   const colorPickerRef = useRef(null);
-  const jointEditorRef = useRef(null);
   const activeRef = useRef(null);
   const syncPaintLayoutRef = useRef(null);
   const nextSplash = useRef(1);
@@ -305,17 +300,48 @@ export default function Hide({ siteId }) {
   const [savedId, setSavedId] = useState(null);
   const [error, setError] = useState("");
   const [showHelp, setShowHelp] = useState(false);
-  const [showPaint, setShowPaint] = useState(false);
-  const [paintBackgroundReady, setPaintBackgroundReady] = useState(false);
   const [deadline, setDeadline] = useState(0);
   const [now, setNow] = useState(Date.now);
   const [timeUp, setTimeUp] = useState(false);
   const [savedAt, setSavedAt] = useState(null);
+  const [zoom, setZoom] = useState(1);
+
+  // ピンチ・Ctrl+ホイール
+  useEffect(() => {
+    const onWheel = (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom((z) => {
+        const next = z * Math.exp(-e.deltaY * 0.01);
+        return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(next * 100) / 100));
+      });
+    };
+    window.addEventListener("wheel", onWheel, { passive: false });
+    return () => window.removeEventListener("wheel", onWheel);
+  }, []);
+
+  // Ctrl + / Ctrl - / Ctrl 0
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.target instanceof HTMLInputElement) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const zoomIn = e.key === "+" || e.key === "=" || e.key === ";" ||
+  e.code === "Equal" || e.code === "Semicolon" || e.code === "NumpadAdd";
+const zoomOut = e.key === "-" || e.code === "Minus" || e.code === "NumpadSubtract";
+const zoomReset = e.key === "0" || e.code === "Digit0" || e.code === "Numpad0";
+if (zoomIn || zoomOut || zoomReset) e.preventDefault(); // 先に止める
+if (zoomIn) setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + 0.25) * 100) / 100));
+if (zoomOut) setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - 0.25) * 100) / 100));
+if (zoomReset) setZoom(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const active = figs.find((f) => f.key === activeKey);
   activeRef.current = active;
-  const paintSize = active ? figureBounds(active) : getFigureBounds("stand", 0);
   const editingJoints = tool === "joints";
+  const showPaint = Boolean(active) && tool !== "move" && !timeUp && !savedId;
   const remaining = deadline ? Math.max(0, (deadline - (savedAt ?? now)) / 1000) : HIDE_TIME_LIMIT_SEC;
   const editingLocked = timeUp || saving || Boolean(savedId);
 
@@ -337,16 +363,7 @@ export default function Hide({ siteId }) {
   }, [deadline, savedId, timeUp]);
 
   // 拡大表示だけを別 canvas に写し、塗りと履歴は元の Painter に保持する。
-  const syncPaintCanvas = () => {
-    const source = canvasRefs.current[activeKey];
-    const preview = paintCanvasRef.current;
-    if (!source || !preview) return;
-    if (preview.width !== source.width) preview.width = source.width;
-    if (preview.height !== source.height) preview.height = source.height;
-    const ctx = preview.getContext("2d");
-    ctx.clearRect(0, 0, preview.width, preview.height);
-    ctx.drawImage(source, 0, 0);
-  };
+  const syncPaintCanvas = () => {};
 
   const editPaint = (action, ...args) => {
     if (!canEdit()) return;
@@ -391,11 +408,7 @@ export default function Hide({ siteId }) {
     if (nextTool !== "move" && !active) return;
     onPointerUp();
     setSplashes([]);
-    setTool(nextTool);
-    if (nextTool !== "move") {
-      setPaintBackgroundReady(false);
-      setShowPaint(true);
-    }
+   setTool(nextTool);
   };
 
   const closePaint = () => {
@@ -406,41 +419,21 @@ export default function Hide({ siteId }) {
     endPaintDialogDrag();
     onPointerUp();
     setSplashes([]);
-    paintDialogRef.current?.close();
-    setShowPaint(false);
     setTool("move");
   };
 
-  const paintDialogTop = (x, width, top) => {
-    const timer = timerRef.current?.getBoundingClientRect();
-    // タイマーと横位置が重なる場合は、その直下までを編集画面の上限にする。
-    return timer && x < timer.right + 6 && x + width > timer.left - 6
-      ? Math.max(top, timer.bottom + 6) : top;
-  };
-
   const placePaintDialog = (position = paintDialogPositionRef.current) => {
-    const dialog = paintDialogRef.current;
-    if (!dialog || !position) return;
-    const viewport = window.visualViewport;
-    const margin = 12;
-    const left = (viewport?.offsetLeft ?? 0) + margin;
-    const top = (viewport?.offsetTop ?? 0) + margin;
-    const width = Math.max(1, (viewport?.width ?? window.innerWidth) - margin * 2);
-    const height = Math.max(1, (viewport?.height ?? window.innerHeight) - margin * 2);
-    const panelWidth = Math.min(position.width, width);
-    const x = Math.max(left, Math.min(position.x, left + width - panelWidth));
-    const safeTop = Math.min(top + height - 1, paintDialogTop(x, panelWidth, top));
-    const availableHeight = top + height - safeTop;
-    const y = Math.max(safeTop, Math.min(position.y,
-      top + height - Math.min(560, availableHeight)));
-    const panelHeight = top + height - y;
-    dialog.style.width = `${panelWidth}px`;
-    dialog.style.height = `${panelHeight}px`;
-    dialog.style.maxHeight = `${availableHeight}px`;
-    dialog.style.left = `${Math.round(x)}px`;
-    dialog.style.top = `${Math.round(y)}px`;
-    return { ...position, x, y };
-  };
+  const el = paintDialogRef.current;
+  if (!el || !position) return position;
+  const margin = 12;
+  // ヘッダーと帯（.b-hint）の下までを移動範囲にする
+  const top = Math.max(margin, document.querySelector(".b-hint")?.getBoundingClientRect().bottom ?? 0);
+  const x = Math.max(margin, Math.min(position.x, window.innerWidth - el.offsetWidth - margin));
+  const y = Math.max(top, Math.min(position.y, window.innerHeight - el.offsetHeight - margin));
+  el.style.left = `${Math.round(x)}px`;
+  el.style.top = `${Math.round(y)}px`;
+  return { ...position, x, y };
+};
 
   const endPaintDialogDrag = (e) => {
     const drag = paintDialogDragRef.current;
@@ -684,9 +677,7 @@ export default function Hide({ siteId }) {
   const onPointerDown = (f) => (e) => {
     if (!canEdit() || e.button !== 0 || e.isPrimary === false || tool === "joints") return;
     e.preventDefault();
-    if (e.currentTarget === paintCanvasRef.current)
-      e.currentTarget.focus({ preventScroll: true });
-    e.currentTarget.setPointerCapture(e.pointerId);
+e.currentTarget.setPointerCapture(e.pointerId);
     setActiveKey(f.key);
     if (tool === "move") {
       const preview = createHangingPreview(painters.current[f.key], {
@@ -786,18 +777,16 @@ export default function Hide({ siteId }) {
   };
 
   useEffect(() => {
-    if (!deadline || now < deadline || timeUp || savedId || saving) return;
-    colorPickerRef.current?.abort();
-    colorPickerRef.current = null;
-    endPaintDialogDrag();
-    onPointerUp();
-    paintDialogRef.current?.close();
-    setShowPaint(false);
-    setShowHelp(false);
-    setTool("move");
-    setSplashes([]);
-    setTimeUp(true);
-  }, [deadline, now, timeUp, savedId, saving]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!deadline || now < deadline || timeUp || savedId || saving) return;
+  colorPickerRef.current?.abort();
+  colorPickerRef.current = null;
+  endPaintDialogDrag();
+  onPointerUp();
+  setShowHelp(false);
+  setTool("move");
+  setSplashes([]);
+  setTimeUp(true);
+}, [deadline, now, timeUp, savedId, saving]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const endDrag = () => onPointerUp();
@@ -851,11 +840,11 @@ export default function Hide({ siteId }) {
     const drag = dragRef.current;
     if (!drag?.joint) return;
     const { figure, source, index, handle } = drag;
-    const rect = jointEditorRef.current.getBoundingClientRect();
-    const point = fromFigurePoint({
-      x: ((e.clientX - rect.left) / rect.width - 0.5) * JOINT_VIEW_SIZE,
-      y: ((e.clientY - rect.top) / rect.height - 0.5) * JOINT_VIEW_SIZE,
-    }, figure.rotation, { x: 0, y: 0 });
+    const p = stageRef.current.toStagePoint(e.clientX, e.clientY);
+const b = figureBounds(figure);
+// 人型の中心（胴の原点）のフィールド座標。関節を動かしても変わらない
+const cx = figure.x - b.x, cy = figure.y - b.y;
+const point = fromFigurePoint({ x: p.x - cx, y: p.y - cy }, figure.rotation, { x: 0, y: 0 });
     const joints = moveJoint(source.joints, index, handle, point);
     if (applyJoints(figure, joints, source, !drag.changed)) drag.changed = true;
   };
@@ -878,100 +867,30 @@ export default function Hide({ siteId }) {
   };
 
   useEffect(() => {
-    if (!showPaint) return;
-    const dialog = paintDialogRef.current;
-    dialog.showModal();
-    syncPaintCanvas();
-    // 配置先のページを同じ寸法で描画し、カメレオンと同じ倍率で切り出す。
-    const background = paintBackgroundRef.current;
-    const preview = paintCanvasRef.current;
-    const source = canvasRefs.current[activeKey];
-    const stage = source.closest(".stage");
-    const scroller = source.closest(".stage-scroll");
-    const positionDialog = () => {
-      // 操作中は編集画面を固定し、手を離してから新しい外形に合わせる。
-      if (dragRef.current || paintDialogDragRef.current) return;
-      if (paintDialogPositionRef.current) {
-        placePaintDialog();
-        return;
-      }
-      const viewport = window.visualViewport;
-      const margin = 12, gap = 20;
-      const left = (viewport?.offsetLeft ?? 0) + margin;
-      const top = (viewport?.offsetTop ?? 0) + margin;
-      const width = (viewport?.width ?? window.innerWidth) - margin * 2;
-      const height = (viewport?.height ?? window.innerHeight) - margin * 2;
-      const right = left + width, bottom = top + height;
-      const target = source.getBoundingClientRect();
-      const clamp = (value, min, max) => Math.max(min, Math.min(value, max));
-      const room = {
-        left: clamp(target.left - gap - left, 0, width),
-        right: clamp(right - target.right - gap, 0, width),
-      };
-      const side = room.left > room.right ? "left" : "right";
-      const beside = room[side] >= Math.min(320, width);
-      const panelWidth = Math.floor(Math.min(640, beside ? room[side] : width));
-      const x = beside
-        ? (side === "left" ? left : right - panelWidth)
-        : clamp((target.left + target.right - panelWidth) / 2, left, right - panelWidth);
-      const y = Math.min(bottom - 1, paintDialogTop(x, panelWidth, top));
-      const panelHeight = Math.floor(bottom - y);
-      dialog.style.width = `${panelWidth}px`;
-      dialog.style.height = `${panelHeight}px`;
-      dialog.style.maxHeight = `${panelHeight}px`;
-      dialog.style.left = `${Math.round(x)}px`;
-      dialog.style.top = `${Math.round(y)}px`;
-    };
-    const syncBackground = () => {
-      const { width, height } = stageRef.current.size;
-      if (background.width !== String(width)) background.width = String(width);
-      if (background.height !== String(height)) background.height = String(height);
-      const f = activeRef.current;
-      const bounds = figureBounds(f);
-      // どのツールでも同じ倍率・胴体の原点を使い、切り替え時に背景を動かさない。
-      const scale = jointEditorRef.current.getBoundingClientRect().width / JOINT_VIEW_SIZE;
-      const centerX = f.x - bounds.x;
-      const centerY = f.y - bounds.y;
-      background.style.transform =
-        `scale(${scale}) translate(${-centerX}px, ${-centerY}px)`;
-    };
-    const syncLayout = () => {
-      positionDialog();
-      syncBackground();
-    };
-    syncPaintLayoutRef.current = syncLayout;
-    syncLayout();
-    const observer = new ResizeObserver(syncLayout);
-    observer.observe(dialog);
-    observer.observe(source);
-    observer.observe(paintSurfaceRef.current);
-    observer.observe(preview);
-    if (stage) observer.observe(stage);
-    scroller?.addEventListener("scroll", syncLayout);
-    window.addEventListener("resize", syncLayout);
-    window.visualViewport?.addEventListener("resize", syncLayout);
-    window.visualViewport?.addEventListener("scroll", syncLayout);
-    window.addEventListener("blur", onPointerUp);
-    window.addEventListener("blur", endPaintDialogDrag);
-    return () => {
-      observer.disconnect();
-      syncPaintLayoutRef.current = null;
-      scroller?.removeEventListener("scroll", syncLayout);
-      window.removeEventListener("resize", syncLayout);
-      window.visualViewport?.removeEventListener("resize", syncLayout);
-      window.visualViewport?.removeEventListener("scroll", syncLayout);
-      window.removeEventListener("blur", onPointerUp);
-      window.removeEventListener("blur", endPaintDialogDrag);
-      colorPickerRef.current?.abort();
-      endPaintDialogDrag();
-      onPointerUp();
-      dialog.close();
-    };
-  }, [showPaint, activeKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    syncPaintLayoutRef.current?.();
-  }, [active, tool]);
+  if (!showPaint) return;
+  if (!paintDialogPositionRef.current) {
+    const el = paintDialogRef.current;
+    // 初回は右下に出す
+    paintDialogPositionRef.current = placePaintDialog({
+      x: window.innerWidth - el.offsetWidth - 16,
+      y: window.innerHeight - el.offsetHeight - 16,
+    });
+  } else {
+    placePaintDialog();
+  }
+  const relayout = () => placePaintDialog();
+  window.addEventListener("resize", relayout);
+  window.addEventListener("blur", onPointerUp);
+  window.addEventListener("blur", endPaintDialogDrag);
+  return () => {
+    window.removeEventListener("resize", relayout);
+    window.removeEventListener("blur", onPointerUp);
+    window.removeEventListener("blur", endPaintDialogDrag);
+    colorPickerRef.current?.abort();
+    endPaintDialogDrag();
+    onPointerUp();
+  };
+}, [showPaint]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // キーボード：矢印で移動、Ctrl+Z で元に戻す、Ctrl+Shift+Z / Ctrl+Y でやり直す（選択中の人型に対して）
   useEffect(() => {
@@ -1172,6 +1091,13 @@ export default function Hide({ siteId }) {
             </div>
           </div>
           <div className="b-tools__group">
+            <label className="b-hud__zoom">
+  <Icon name="search" size={18} />
+  <span>背景の拡大縮小</span>
+  <Range color="hide" min={1} max={4} step={0.1} value={zoom}
+    onChange={(e) => setZoom(Number(e.target.value))} style={{ width: 110 }} />
+  <span className="b-hud__zoom-value">{Math.round(zoom * 100)}%</span>
+</label>
             <Check checked={outline} onChange={(e) => setOutline(e.target.checked)}>枠を表示</Check>
           </div>
         </div>
@@ -1184,13 +1110,10 @@ export default function Hide({ siteId }) {
         {error && <span className="b-hint__error" role="alert">{error}</span>}
       </div>
 
-      <SiteStage
-        ref={stageRef}
-        siteId={siteId}
-        onReady={handleReady}
-      >
-        {figs.map((f) => {
-          const { w, h } = figureBounds(f);
+      <SiteStage ref={stageRef} siteId={siteId} zoom={zoom} onReady={handleReady}>
+  {figs.map((f) => {
+    const b = figureBounds(f);
+    const { w, h } = b;
           const carry = carried?.key === f.key ? carried : null;
           return (
             <div key={f.key}>
@@ -1212,6 +1135,51 @@ export default function Hide({ siteId }) {
                 onPointerCancel={onPointerUp}
                 onLostPointerCapture={onPointerUp}
               />
+              {editingJoints && f.key === activeKey && !carry && (
+  <svg
+    className="hide-joint-overlay"
+    style={{ position: "absolute", left: f.x - b.x, top: f.y - b.y, right: "auto", bottom: "auto",
+      width: 1, height: 1, overflow: "visible", pointerEvents: "none" }}
+  >
+    {f.joints.map((limb, index) => {
+      const points = Object.fromEntries(["root", "bend", "end"].map((handle) =>
+        [handle, toFigurePoint(limb[handle], f.rotation, { x: 0, y: 0 })]));
+      return (
+        <g key={limb.label}>
+          <path
+            className="hide-joint-bones"
+            style={{ strokeWidth: 2 / zoom }}
+            d={`M${points.root.x} ${points.root.y} L${points.bend.x} ${points.bend.y} L${points.end.x} ${points.end.y}`}
+          />
+          {["bend", "end"].map((handle) => {
+            const point = points[handle];
+            const label = `${limb.label}の${jointLabel(index, handle)}`;
+            return (
+              <g
+                key={handle}
+                className="hide-joint-handle"
+                style={{ pointerEvents: "all" }}
+                role="button"
+                tabIndex={0}
+                aria-label={label}
+                onPointerDown={onJointDown(index, handle)}
+                onPointerMove={onJointMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={onPointerUp}
+                onLostPointerCapture={onPointerUp}
+                onKeyDown={onJointKey(index, handle)}
+              >
+                <title>{label}</title>
+                <circle cx={point.x} cy={point.y} r={12 / zoom} fill="transparent" />
+                <circle className="hide-joint-dot" cx={point.x} cy={point.y} r={5 / zoom} />
+              </g>
+            );
+          })}
+        </g>
+      );
+    })}
+  </svg>
+)}
               {carry && (
                 <div
                   className="hide-carried-figure"
@@ -1253,21 +1221,12 @@ export default function Hide({ siteId }) {
         })}
       </SiteStage>
 
-      {showPaint && active && (
-        <dialog
-          ref={paintDialogRef}
-          className="hide-paint-modal"
-          aria-label="本体の色塗り・ポーズ調整"
-          onCancel={(e) => {
-            e.preventDefault();
-            closePaint();
-          }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closePaint();
-          }}
-        >
-          <span className="b-tape b-tape--left b-tape--hide" aria-hidden="true" />
-          <span className="b-tape b-tape--right b-tape--accent" aria-hidden="true" />
+      {showPaint && (
+  <aside
+    ref={paintDialogRef}
+    className="hide-paint-modal"
+    aria-label="本体の色塗り・ポーズ調整"
+  >
           <div className="hide-paint-panel">
             <header className="hide-paint-header"
               title="上部をドラッグして画面を移動"
@@ -1328,7 +1287,7 @@ export default function Hide({ siteId }) {
                 </label>
               </div>
             </div>
-            <div className="hide-paint-surface" ref={paintSurfaceRef}>
+            {/*<div className="hide-paint-surface" ref={paintSurfaceRef}>
               <iframe
                 ref={paintBackgroundRef}
                 className="hide-paint-background"
@@ -1426,7 +1385,7 @@ export default function Hide({ siteId }) {
                   </svg>
                 )}
               </div>
-            </div>
+            </div>*/}
             {/* 操作欄は同じ領域に重ね、非表示の欄も高さを確保する。 */}
             <div className="hide-mode-stack hide-paint-details">
               <div className={tool === "pen" ? undefined : "is-inactive"}
@@ -1459,7 +1418,7 @@ export default function Hide({ siteId }) {
               <Sticker size="s" color="hide" tilt={-2} onClick={closePaint}>完了</Sticker>
             </footer>
           </div>
-        </dialog>
+        </aside>
       )}
 
       {showHelp && (
