@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import SiteStage from '../components/SiteStage.jsx';
 import Icon from '../components/Icon.jsx';
 import { FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from '../components/ui.jsx';
 import { api } from '../api.js';
 import './Find.css';
+import { getRandomName } from "../userNames.js";
 
 const ZOOMS = [1, 1.5, 2, 3];
 const HIT_TOLERANCE = 3;
@@ -93,7 +94,8 @@ export default function Find({ siteId }) {
   const hideScoresRef = useRef({});
   const savedGameRef = useRef(null);
   const [stageReady, setStageReady] = useState(false);
-  const [phase, setPhase] = useState('intro');
+  const [phase, setPhase] = useState('intro'); // intro | starting | playing | over | empty
+  const [playerName, setPlayerName] = useState(() => getRandomName("find"));
   const [game, setGame] = useState(null);
   const [found, setFound] = useState([]);
   const [deadline, setDeadline] = useState(0);
@@ -108,9 +110,15 @@ export default function Find({ siteId }) {
   const [aim, setAim] = useState(null);
   const pointerRef = useRef(null);
   const aimFrameRef = useRef(null);
-  const [playerName, setPlayerName] = useState('');
   const [totalScore, setTotalScore] = useState(0);
   const activePlayerNameRef = useRef('ななしのハンター');
+  const playerNameInputRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (phase === 'intro') {
+      playerNameInputRef.current?.select();
+    }
+  }, [phase]);
 
   const scheduleAim = () => {
     if (aimFrameRef.current != null) return;
@@ -123,14 +131,16 @@ export default function Find({ siteId }) {
 
   const remaining = Math.max(0, (deadline - now) / 1000);
   const cooldownRemaining = Math.max(0, (cooldownUntil - now) / 1000);
+  const trimmedName = playerName.trim();
+  const nameValid = trimmedName.length > 0 && trimmedName.length <= 20;
 
   const start = async () => {
+    if (!nameValid) return;
     setPhase('starting');
     setError('');
     setTotalScore(0);
     try {
-      const finalPlayerName = playerName.trim() || 'ななしのハンター';
-      activePlayerNameRef.current = finalPlayerName;
+      activePlayerNameRef.current = trimmedName;
       const g = await api.startGame(siteId, []);
       if (g.chameleons.length === 0) {
         setPhase('empty');
@@ -402,19 +412,21 @@ export default function Find({ siteId }) {
           </div>
           <p className="b-modal__note">クリックするたびに{CLICK_COOLDOWN_MS / 1000}秒間はクリックできません（当たり・外れのどれでも）</p>
           <label className="b-player-name">
-            ハンターの名前
-            <input
-              className="b-input"
-              type="text"
-              placeholder="ハンターの名前"
-              maxLength={20}
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-            />
-          </label>
+  ランキングに登録する名前（変更できます）
+  <input
+    ref={playerNameInputRef}
+    className="b-input"
+    type="text"
+    maxLength={20}
+    value={playerName}
+    onChange={(e) => setPlayerName(e.target.value)}
+    onFocus={(e) => e.target.select()}
+  />
+</label>
+{!nameValid && <p className="b-alert">名前を入力してください</p>}
           {error && <p className="b-alert" role="alert">{error}</p>}
           <div className="b-modal__actions">
-            <Sticker color="find" tilt={-2} disabled={!stageReady || phase === 'starting'} onClick={start}>
+            <Sticker color="find" tilt={-2} disabled={!stageReady || phase === 'starting' || !nameValid} onClick={start}>
               {!stageReady ? 'ページ読み込み中…' : phase === 'starting' ? '準備中…' : 'スタート'}
             </Sticker>
           </div>
