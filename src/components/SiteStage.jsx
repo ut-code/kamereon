@@ -100,6 +100,15 @@ const SiteStage = forwardRef(function SiteStage({
   const prevZoom = useRef(zoom);
   const prevOffset = useRef({ left: 0, top: 0 }); // ページが画面より狭いときの中央寄せの余白
   const anchorRef = useRef(null); // スクロール領域内の基準点 (px)。null なら中心
+  const beforeZoom = useRef(null); // ズーム変更直前のスクロール位置
+
+// レンダリング中（DOM がまだ古いサイズのうち）に位置を控える
+if (prevZoom.current !== zoom && !beforeZoom.current && scrollRef.current) {
+  beforeZoom.current = {
+    left: scrollRef.current.scrollLeft,
+    top: scrollRef.current.scrollTop,
+  };
+}
   // 最後のマウス位置を基準点にする（スライダーやキー操作で倍率を変えたときも、カーソルの下を動かさない）
   useEffect(() => {
     const el = scrollRef.current;
@@ -116,22 +125,19 @@ const SiteStage = forwardRef(function SiteStage({
     };
   }, [site]);
   useLayoutEffect(() => {
-    const el = scrollRef.current;
-    const sizer = sizerRef.current;
-    if (!el || !sizer) return;
-    const ratio = zoom / prevZoom.current;
-    const offset = { left: sizer.offsetLeft, top: sizer.offsetTop };
-    if (ratio !== 1) {
-      const ax = anchorRef.current?.x ?? el.clientWidth / 2;
-      const ay = anchorRef.current?.y ?? el.clientHeight / 2;
-      el.scrollLeft = (el.scrollLeft + ax - prevOffset.current.left) * ratio + offset.left - ax;
-      el.scrollTop = (el.scrollTop + ay - prevOffset.current.top) * ratio + offset.top - ay;
-    }
-    anchorRef.current = null;
-    prevZoom.current = zoom;
-    prevOffset.current = offset;
-  }, [zoom]);
-
+  const el = scrollRef.current;
+  if (!el) return;
+  const ratio = zoom / prevZoom.current;
+  if (ratio !== 1 && beforeZoom.current) {
+    const ax = anchorRef.current?.x ?? el.clientWidth / 2;
+    const ay = anchorRef.current?.y ?? el.clientHeight / 2;
+    const { left, top } = beforeZoom.current;
+    el.scrollLeft = (left + ax) * ratio - ax;
+    el.scrollTop = (top + ay) * ratio - ay;
+  }
+  beforeZoom.current = null;
+  prevZoom.current = zoom;
+}, [zoom]);
   // ピンチで拡大・縮小する。ブラウザ自体のページ拡大は止める
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;
