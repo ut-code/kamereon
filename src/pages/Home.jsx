@@ -309,11 +309,11 @@ export default function Home({ siteId = 'utcode' }) {
         <Logo />
 
         <nav className="b-home__modes" aria-label="遊ぶモードを選ぶ">
-          <Sticker as="a" href={homeHref('find-site')} size="l" color="find" tilt={-2} className="b-mode">
-            <FindIcon />見つける
-          </Sticker>
-          <Sticker as="a" href={homeHref('hide-site')} size="l" color="hide" tilt={2} className="b-mode">
+          <Sticker as="a" href={homeHref('hide-site')} size="l" color="hide" tilt={-2} className="b-mode">
             <FigureIcon width={30} height={56} />隠す
+          </Sticker>
+          <Sticker as="a" href={homeHref('find-site')} size="l" color="find" tilt={2} className="b-mode">
+            <FindIcon />見つける
           </Sticker>
         </nav>
 

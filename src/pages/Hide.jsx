@@ -444,6 +444,8 @@ export default function Hide({ siteId }) {
   const [outline, setOutline] = useState(true);
   const [name, setName] = useState(() => getRandomName("hide"));
   const [showSaveModal, setShowSaveModal] = useState(false);
+  // 「ここに隠れる！」で名前入力を開いた時刻。開いている間は制限時間を止める（閉じたら止めた分だけ締切を延ばす）
+  const [pausedAt, setPausedAt] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState(null);
   // 実際に保存された名前。被っていたときはサーバーが連番を付ける（「たろう」→「たろう2」）
@@ -505,7 +507,7 @@ export default function Hide({ siteId }) {
   const editingJoints = tool === "joints";
   const showPaint = Boolean(active) && tool !== "move" && !timeUp && !savedId;
   const remaining = deadline
-    ? Math.max(0, (deadline - (savedAt ?? now)) / 1000)
+    ? Math.max(0, (deadline - (pausedAt ?? savedAt ?? now)) / 1000)
     : HIDE_TIME_LIMIT_SEC;
   const editingLocked = timeUp || saving || Boolean(savedId);
 
@@ -516,7 +518,7 @@ export default function Hide({ siteId }) {
     Date.now() < deadlineRef.current;
 
   useEffect(() => {
-    if (!deadline || savedId || timeUp) return;
+    if (!deadline || savedId || timeUp || pausedAt) return;
     const tick = () => setNow(Date.now());
     const id = setInterval(tick, 250);
     window.addEventListener("focus", tick);
@@ -526,7 +528,23 @@ export default function Hide({ siteId }) {
       window.removeEventListener("focus", tick);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [deadline, savedId, timeUp]);
+  }, [deadline, savedId, timeUp, pausedAt]);
+
+  // 名前入力を開く・閉じる。開いている間は制限時間を止める
+  const openSaveModal = () => {
+    setPausedAt(Date.now());
+    setShowSaveModal(true);
+  };
+  const closeSaveModal = () => {
+    if (pausedAt) {
+      const resumed = Date.now();
+      deadlineRef.current += resumed - pausedAt;
+      setDeadline(deadlineRef.current);
+      setNow(resumed);
+    }
+    setPausedAt(null);
+    setShowSaveModal(false);
+  };
 
   // 拡大表示だけを別 canvas に写し、塗りと履歴は元の Painter に保持する。
   const syncPaintCanvas = () => {};
@@ -1047,7 +1065,7 @@ export default function Hide({ siteId }) {
   };
 
   useEffect(() => {
-    if (!deadline || now < deadline || timeUp || savedId || saving) return;
+    if (!deadline || now < deadline || timeUp || savedId || saving || pausedAt) return;
     colorPickerRef.current?.abort();
     colorPickerRef.current = null;
     endPaintDialogDrag();
@@ -1056,7 +1074,7 @@ export default function Hide({ siteId }) {
     setTool("move");
     setSplashes([]);
     setTimeUp(true);
-  }, [deadline, now, timeUp, savedId, saving]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deadline, now, timeUp, savedId, saving, pausedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const endDrag = () => onPointerUp();
@@ -1460,7 +1478,7 @@ export default function Hide({ siteId }) {
               color="hide"
               tilt={-2}
               disabled={!figs.length || saving || Boolean(savedId)}
-              onClick={() => setShowSaveModal(true)}
+              onClick={openSaveModal}
             >
               {saving ? "保存中…" : "ここに隠れる！"}
             </Sticker>
@@ -2067,7 +2085,7 @@ export default function Hide({ siteId }) {
           className="hide-timeup"
           aria-labelledby="hide-timeup-title"
           /* 手動保存のときだけ、モーダルの外側をクリックして閉じられるようにする */
-          onBackdropClick={() => !timeUp && setShowSaveModal(false)}
+          onBackdropClick={() => !timeUp && !saving && closeSaveModal()}
         >
           <h2 id="hide-timeup-title" className="b-modal__title">
             {timeUp ? "タイムアップ！" : "隠れる準備完了！"}
@@ -2084,6 +2102,8 @@ export default function Hide({ siteId }) {
                 この場所で隠れますか？
                 <br />
                 ランキングに登録する名前を決めてください。
+                <br />
+                名前を決めている間、残り時間は止まっています。
               </>
             )}
           </p>
@@ -2094,8 +2114,16 @@ export default function Hide({ siteId }) {
             maxLength={20}
             value={name}
             onChange={(e) => setName(e.target.value)}
-            onFocus={(e) => e.target.select()}
+            onFocus={(e) => {
+              // 全部選択するのは最初にカーソルが入ったときだけ。日本語入力の途中でカーソルが入り直したと
+              // 扱われる環境（Windows の Edge など）で、変換中の文字が選択されて消えたり確定したりしないようにする
+              if (e.target.dataset.selectedOnce) return;
+              e.target.dataset.selectedOnce = "1";
+              e.target.select();
+            }}
             onKeyDown={(e) => {
+              // 日本語入力で変換を確定する Enter では保存しない（Safari は確定後に keyCode 229 で届く）
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === "Enter" && name.trim() && !saving) save();
             }}
             disabled={saving}
@@ -2109,7 +2137,7 @@ export default function Hide({ siteId }) {
           <div className="b-modal__actions">
             {/* 手動保存のときだけ「戻る」ボタンを表示 */}
             {!timeUp && (
-              <Sticker tilt={2} onClick={() => setShowSaveModal(false)}>
+              <Sticker tilt={2} onClick={closeSaveModal} disabled={saving}>
                 戻る
               </Sticker>
             )}

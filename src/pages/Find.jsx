@@ -821,7 +821,13 @@ useEffect(() => {
     maxLength={20}
     value={playerName}
     onChange={(e) => setPlayerName(e.target.value)}
-    onFocus={(e) => e.target.select()}
+    onFocus={(e) => {
+      // 全部選択するのは最初にカーソルが入ったときだけ。日本語入力の途中でカーソルが入り直したと
+      // 扱われる環境（Windows の Edge など）で、変換中の文字が選択されて消えたり確定したりしないようにする
+      if (e.target.dataset.selectedOnce) return;
+      e.target.dataset.selectedOnce = '1';
+      e.target.select();
+    }}
   />
 </label>
 {!nameValid && <p className="b-alert">名前を入力してください</p>}
