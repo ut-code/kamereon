@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, useLayoutEffect } from 'react';
 import { SITES } from '../../server/sites.js';
 
 const MIN_HEIGHT = 800;
@@ -65,7 +65,8 @@ const SiteStage = forwardRef(function SiteStage({ siteId, zoom = 1, onReady, ove
 
   // ズーム変更時、見ている中心がずれないようにスクロール位置を補正する
   const prevZoom = useRef(zoom);
-const anchorRef = useRef(null); // 最後のマウス位置（スクロール領域内の座標）
+  const anchorRef = useRef(null); // 最後のマウス位置（スクロール領域内の座標）
+  const beforeZoom = useRef(null); // ズーム変更直前のスクロール位置
 
 useEffect(() => {
   const el = scrollRef.current;
@@ -81,16 +82,26 @@ useEffect(() => {
   };
 }, []);
 
-useEffect(() => {
+// レンダリング中（DOM がまだ古いサイズのうち）に位置を控える
+if (prevZoom.current !== zoom && !beforeZoom.current && scrollRef.current) {
+  beforeZoom.current = {
+    left: scrollRef.current.scrollLeft,
+    top: scrollRef.current.scrollTop,
+  };
+}
+
+useLayoutEffect(() => {
   const el = scrollRef.current;
+  if (!el) return;
   const ratio = zoom / prevZoom.current;
-  if (ratio !== 1) {
-    // カーソルがあればその位置、なければ画面中心を固定点にする
+  if (ratio !== 1 && beforeZoom.current) {
     const ax = anchorRef.current?.x ?? el.clientWidth / 2;
     const ay = anchorRef.current?.y ?? el.clientHeight / 2;
-    el.scrollLeft = (el.scrollLeft + ax) * ratio - ax;
-    el.scrollTop = (el.scrollTop + ay) * ratio - ay;
+    const { left, top } = beforeZoom.current;
+    el.scrollLeft = (left + ax) * ratio - ax;
+    el.scrollTop = (top + ay) * ratio - ay;
   }
+  beforeZoom.current = null;
   prevZoom.current = zoom;
 }, [zoom]);
 
