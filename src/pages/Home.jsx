@@ -81,7 +81,7 @@ function HomeFlow({ route }) {
           <SitePreview site={site} className="b-site__preview" />
           <h2>{site.title}</h2>
           {/* 札全体がリンクなので、ボタンの見た目だけの span にする */}
-          <Sticker as="span" size="m" color={mode} tilt={index % 2 ? 2 : -2}>選択する →</Sticker>
+          <Sticker as="span" size="s" color={mode} tilt={index % 2 ? 2 : -2}>選択する →</Sticker>
         </a>)}
         {/* ページが4つに満たないときは「準備中」で埋める */}
         {Array.from({ length: Math.max(0, 4 - AVAILABLE_SITES.length) }, (_, index) => <div className="b-site b-site--soon" key={`empty-${index}`}>
@@ -247,7 +247,7 @@ function Logo() {
 /** 見つけるの虫めがね（カクカクしたレンズ） */
 function FindIcon() {
   return (
-    <svg width="60" height="60" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" aria-hidden="true" focusable="false">
+    <svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" aria-hidden="true" focusable="false">
       <path d="M13 4.5L21.5 8L23 14L19 21L11 22L5 16.5L6 9Z" />
       <path d="M19.5 20L27.5 28" />
     </svg>
@@ -313,7 +313,7 @@ export default function Home({ siteId = 'utcode' }) {
             <FindIcon />見つける
           </Sticker>
           <Sticker as="a" href={homeHref('hide-site')} size="l" color="hide" tilt={2} className="b-mode">
-            <FigureIcon width={38} height={70} />隠す
+            <FigureIcon width={30} height={56} />隠す
           </Sticker>
         </nav>
 
