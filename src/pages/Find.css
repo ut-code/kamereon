@@ -44,7 +44,12 @@
 .b-player-name { display: grid; justify-items: start; gap: 8px; font-size: 15px; font-weight: 800; }
 .b-player-name .b-input { max-width: 100%; }
 
-.b-cooldown { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.b-cooldown { position: relative; display: flex; align-items: center; height: 34px; padding: 0 12px; background: var(--ink); color: var(--paper); font-size: 15px; font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.b-cooldown__label { display: flex; align-items: center; gap: 6px; }
+/* 札の下端の、クールタイムに合わせて減っていく棒 */
+.b-cooldown__bar { position: absolute; right: 0; bottom: 0; left: 0; height: 4px; background: rgba(255, 255, 255, .2); }
+.b-cooldown__bar > span { display: block; height: 100%; background: var(--find); transform-origin: left; animation: find-cooldown-bar linear forwards; }
+@keyframes find-cooldown-bar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 .b-found { display: flex; align-items: center; gap: 4px; }
 .b-found__icon { color: #E2D8F5; }
 .b-found__icon.is-found { color: var(--hide); animation: find-icon-pop .3s cubic-bezier(.175, .885, .32, 1.275); }
@@ -57,13 +62,75 @@
 }
 
 /* ---- 照準。直径 100px の円と破線の十字（濃い紫の縁取りに黄緑）。ホットスポットは中心 ---- */
-/* 大きさは Find.jsx の RETICLE_RADIUS_PX（影を出す円の半径）と合わせている */
+/* マウスの端末ではプレイ中はこの画像を使わず、同じ形の .find-reticle（大きさは Find.jsx の RETICLE_RADIUS_PX）を出す。タッチ操作だけの端末用 */
 .stage-overlay.seeking {
   pointer-events: auto;
   cursor:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 50 50'%3E%3Cg fill='none'%3E%3Ccircle cx='25' cy='25' r='24' stroke='%232A1650' stroke-opacity='.55' stroke-width='2.4'/%3E%3Ccircle cx='25' cy='25' r='24' stroke='%23C5F04A' stroke-width='1.2'/%3E%3Cpath d='M25 1V49M1 25H49' stroke='%23C5F04A' stroke-width='0.35' stroke-opacity='1' stroke-dasharray='4 3'/%3E%3C/g%3E%3C/svg%3E")
       50 50,
     crosshair;
+}
+
+/* マウスの端末では、プレイ中は本物のカーソルを隠して、同じ形の照準（.find-reticle）を出す。
+   カーソル画像はページの拡大率などで大きさが変わるため、クールタイムの前後で大きさがそろうよう、ずっとこちらを使う */
+.stage-overlay.seeking.dom-reticle { cursor: none; }
+
+/* ---- 照準。形・太さ・色は上のカーソル画像（viewBox 50 を 100px に拡大）と同じ ---- */
+.find-reticle,
+.find-cooldown {
+  position: fixed;
+  z-index: 36;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.find-reticle svg { position: absolute; top: 0; left: 0; display: block; overflow: visible; transform: translate(-50%, -50%); }
+.find-reticle circle, .find-reticle path { fill: none; }
+.find-reticle__edge, .find-reticle__arc-edge { stroke: rgba(42, 22, 80, .55); stroke-width: 2.4; }
+.find-reticle__ring, .find-reticle__arc { stroke: var(--find); stroke-width: 1.2; }
+.find-reticle__cross { stroke: var(--find); stroke-width: .35; stroke-dasharray: 4 3; }
+/* クールタイム中：円そのものが残り時間のぶんの弧になり、12時から時計回りに減っていく。十字は灰色 */
+.find-reticle__ghost { stroke: rgba(42, 22, 80, .18); stroke-width: 1.2; }
+.find-reticle.is-cooling .find-reticle__cross { stroke: #B9B2C9; }
+.find-reticle__arc-edge,
+.find-reticle__arc {
+  stroke-linecap: round;
+  /* pathLength=100 として、見えている弧を 100 → 0 にする */
+  stroke-dasharray: 100 100;
+  animation: find-cooldown-drain linear forwards;
+}
+@keyframes find-cooldown-drain {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -100; }
+}
+/* 待ち中にクリックしたら、弧を一瞬ピンクにする */
+.find-reticle .is-denied .find-reticle__arc {
+  animation-name: find-cooldown-drain, find-cooldown-denied-color;
+  animation-timing-function: linear, linear;
+  animation-fill-mode: forwards, none;
+}
+@keyframes find-cooldown-denied-color { 0%, 100% { stroke: var(--hide); } }
+/* 待ち中にクリックしたとき、照準の下に出す「あと○秒」 */
+.find-cooldown__denied {
+  position: absolute;
+  left: 0;
+  padding: 3px 10px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transform: translateX(-50%);
+  animation: find-cooldown-denied 1.1s ease-out forwards;
+}
+@keyframes find-cooldown-denied {
+  0% { opacity: 0; transform: translate(-50%, -4px); }
+  12% { opacity: 1; transform: translate(-50%, 0); }
+  75% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* ---- 舞台の上のカメレオンと印 ---- */

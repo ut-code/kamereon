@@ -81,7 +81,7 @@ function HomeFlow({ route }) {
           <SitePreview site={site} className="b-site__preview" />
           <h2>{site.title}</h2>
           {/* 札全体がリンクなので、ボタンの見た目だけの span にする */}
-          <Sticker as="span" size="s" color={mode} tilt={index % 2 ? 2 : -2}>選択する →</Sticker>
+          <Sticker as="span" size="m" color={mode} tilt={index % 2 ? 2 : -2}>選択する →</Sticker>
         </a>)}
         {/* ページが4つに満たないときは「準備中」で埋める */}
         {Array.from({ length: Math.max(0, 4 - AVAILABLE_SITES.length) }, (_, index) => <div className="b-site b-site--soon" key={`empty-${index}`}>
@@ -124,11 +124,13 @@ function RankingCard({ mode, entries, loading, failed, period }) {
   useEffect(() => setExpanded(false), [period]);
   const hiding = mode === 'hide';
   const visible = entries.slice(0, expanded ? 10 : 3);
-  // 一覧の代わりに出す文。デイリーは準備中
-  const message = period === 'daily' ? '準備中'
-    : loading ? '読み込み中…'
+  // 一覧の代わりに出す文（読み込み中・失敗・記録なし）
+  const daily = period === 'daily';
+  const message = loading ? '読み込み中…'
     : failed ? 'ランキングを表示できませんでした。'
-    : visible.length === 0 ? (hiding ? '評価が3回以上のカメレオンはまだいません' : '記録はまだありません')
+    : visible.length === 0 ? (hiding
+      ? (daily ? '今日隠れて、評価が3回以上のカメレオンはまだいません' : '評価が3回以上のカメレオンはまだいません')
+      : (daily ? '今日の記録はまだありません' : '記録はまだありません'))
     : null;
   return (
     <section className={`b-ranking b-ranking--${mode}`} aria-labelledby={`ranking-${mode}-title`}>
@@ -245,7 +247,7 @@ function Logo() {
 /** 見つけるの虫めがね（カクカクしたレンズ） */
 function FindIcon() {
   return (
-    <svg width="48" height="48" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" aria-hidden="true" focusable="false">
+    <svg width="60" height="60" viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="square" aria-hidden="true" focusable="false">
       <path d="M13 4.5L21.5 8L23 14L19 21L11 22L5 16.5L6 9Z" />
       <path d="M19.5 20L27.5 28" />
     </svg>
@@ -255,8 +257,8 @@ function FindIcon() {
 export default function Home({ siteId = 'utcode' }) {
   const route = useHomeRoute();
   const [period, setPeriod] = useState('all');
-  const [ranking, setRanking] = useState(null);
-  const [finderRanking, setFinderRanking] = useState(null);
+  // 期間ごとのランキング { all: { finder, hider }, daily: { finder, hider } }。総合とデイリーを最初にまとめて読む
+  const [rankings, setRankings] = useState(null);
   const [rankingError, setRankingError] = useState(false);
   const [reload, setReload] = useState(0);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -271,29 +273,27 @@ export default function Home({ siteId = 'utcode' }) {
 
   useEffect(() => {
     let active = true;
-    setRanking(null);
-    setFinderRanking(null);
+    setRankings(null);
     setRankingError(false);
+    const toHider = (data) => data.map((c) => ({ ...c, score: Math.round(c.avg_score) }));
+    const toFinder = (data) => data.map((g) => ({ id: g.id, name: g.playerName || g.player_name, score: g.score }));
     Promise.all([
-      api.getHiderRanking(),
-      api.getFinderRanking(),
+      api.getHiderRanking('all'),
+      api.getFinderRanking('all'),
+      api.getHiderRanking('daily'),
+      api.getFinderRanking('daily'),
     ])
-      .then(([hiderData, finderData]) => {
+      .then(([hiderAll, finderAll, hiderDaily, finderDaily]) => {
         if (!active) return;
-        setRanking(hiderData.map((c) => ({
-          ...c,
-          score: Math.round(c.avg_score),
-        })));
-        setFinderRanking(finderData.map((g) => ({
-          id: g.id,
-          name: g.playerName || g.player_name,
-          score: g.score,
-          found: g.score,
-        })));
+        setRankings({
+          all: { hider: toHider(hiderAll), finder: toFinder(finderAll) },
+          daily: { hider: toHider(hiderDaily), finder: toFinder(finderDaily) },
+        });
       })
       .catch(() => { if (active) setRankingError(true); });
     return () => { active = false; };
   }, [siteId, reload]);
+  const shown = rankings?.[period];
 
   if (route.step === 'hide-body') return <FlowScreen><p className="b-lead" role="status">隠れる画面を開いています…</p></FlowScreen>;
   if (route.step) return <HomeFlow route={route} />;
@@ -313,7 +313,7 @@ export default function Home({ siteId = 'utcode' }) {
             <FindIcon />見つける
           </Sticker>
           <Sticker as="a" href={homeHref('hide-site')} size="l" color="hide" tilt={2} className="b-mode">
-            <FigureIcon width={30} height={56} />隠す
+            <FigureIcon width={38} height={70} />隠す
           </Sticker>
         </nav>
 
@@ -322,9 +322,7 @@ export default function Home({ siteId = 'utcode' }) {
             <h2 id="home-ranking-title">ランキング</h2>
             <div className="b-board__periods" role="group" aria-label="ランキングの期間">
               <Tab pressed={period === 'all'} color="accent" tilt={-2} onClick={() => setPeriod('all')}>総合</Tab>
-              <Tab pressed={period === 'daily'} color="accent" tilt={1.5} onClick={() => setPeriod('daily')}>
-                デイリー<span className="b-chip">準備中</span>
-              </Tab>
+              <Tab pressed={period === 'daily'} color="accent" tilt={1.5} onClick={() => setPeriod('daily')}>デイリー</Tab>
             </div>
           </div>
           {rankingError && (
@@ -333,9 +331,12 @@ export default function Home({ siteId = 'utcode' }) {
               <Tab onClick={() => setReload((r) => r + 1)}>再読み込み</Tab>
             </div>
           )}
-          <div className="b-board__lists" aria-busy={ranking === null && !rankingError}>
-            <RankingCard mode="find" entries={finderRanking ?? []} period={period} loading={!finderRanking && !rankingError} failed={rankingError} />
-            <RankingCard mode="hide" entries={ranking ?? []} period={period} loading={!ranking && !rankingError} failed={rankingError} />
+          {period === 'daily' && (
+            <p className="b-board__note">今日（日本時間の0時から）の記録です。隠れ上手は、今日隠れたカメレオンの中のランキングです。</p>
+          )}
+          <div className="b-board__lists" aria-busy={rankings === null && !rankingError}>
+            <RankingCard mode="find" entries={shown?.finder ?? []} period={period} loading={!rankings && !rankingError} failed={rankingError} />
+            <RankingCard mode="hide" entries={shown?.hider ?? []} period={period} loading={!rankings && !rankingError} failed={rankingError} />
           </div>
         </Board>
       </main>

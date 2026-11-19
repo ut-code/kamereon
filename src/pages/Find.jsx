@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import SiteStage from '../components/SiteStage.jsx';
 import Icon from '../components/Icon.jsx';
 import { FigureIcon, Modal, Range, Sticker, Tab, Timer, tiltStyle } from '../components/ui.jsx';
@@ -10,7 +10,7 @@ const ZOOMS = [1, 1.5, 2, 3];
 const HIT_TOLERANCE = 3; // クリック判定の余裕 (px)
 const CLICK_COOLDOWN_MS = 5000; // フィールドをクリックしたあとのクールタイム
 const DEFAULT_TIME_LIMIT_SEC = 180; // 制限時間（server/api.js の TIME_LIMIT_SEC と同じ）。スタート前は game.timeLimit がまだ無いので、こちらを表示に使う
-const RETICLE_RADIUS_PX = 48; // 照準の円の半径 (画面px)。Find.css の .stage-overlay.seeking のカーソルと合わせる
+const RETICLE_RADIUS_PX = 60; // 照準の円の半径 (画面px)。照らす範囲（影を出す円）の半径でもある
 const SHADOW_MIN_OFFSET = 6; // 影のずれの最小値 (ページpx)
 const SHADOW_MAX_EXTRA = 12; // 光源から離れるほど増える影のずれの上限 (ページpx)
 const SHADOW_DIST_RATIO = 0.2; // 光源からの距離に対する影のずれの割合
@@ -18,7 +18,7 @@ const TILE = 256; // カメレオンを描く canvas タイルの1辺 (ページ
 const TILE_SCALE = 2; // タイルの解像度の倍率（カメレオン画像の解像度 FIG_SCALE と同じ）
 const HINT_THRESHOLDS = [120, 90, 60, 30, 10]; // 1分30秒, 1分, 30秒, 10秒
 const HINT_DURATION_MS = 1500; // ヒントを表示する時間（4.5秒）
-const RETICLE_ARROW_DIST = 84;
+const RETICLE_ARROW_DIST = RETICLE_RADIUS_PX + 36; // ヒントの矢印を出す、照準の中心からの距離 (画面px)
 
 
 // ヒントのときに効果音を鳴らす
@@ -199,6 +199,90 @@ function FlashlightShadow({ obj, aim, radius }) {
 
 const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
 
+// マウスの無い端末（タッチ操作だけ）か。照準のカーソルが無いので、最後にタップした位置にリングを出す
+const touchOnly = typeof window !== 'undefined' && window.matchMedia?.('(hover: none)').matches;
+
+// クールタイムの経過に合わせて減っていく表示に渡す、アニメーションの開始位置。
+// 途中で表示し直しても（カーソルがステージを出入りしても）減り具合が巻き戻らないよう、表示した時点の経過時間から始める。
+function useCooldownDelay(until) {
+  const [delay] = useState(() => Math.min(0, until - CLICK_COOLDOWN_MS - Date.now()));
+  return `${delay}ms`;
+}
+
+// 照準の円の、残り時間のぶんの弧。CSS アニメーションで毎フレームなめらかに減らす。
+// 待ち中にクリックしたときに作り直しても、その時点の減り具合から続ける
+function CooldownArc({ until, denied }) {
+  const delay = useCooldownDelay(until);
+  // 待ち中にクリックしたときは、減るアニメーションに加えて 0.35 秒だけピンクにするアニメーションを重ねる（Find.css）
+  const style = denied
+    ? { animationDuration: `${CLICK_COOLDOWN_MS}ms, 350ms`, animationDelay: `${delay}, 0ms` }
+    : { animationDuration: `${CLICK_COOLDOWN_MS}ms`, animationDelay: delay };
+  return (
+    <>
+      <circle className="find-reticle__arc-edge" r="24" pathLength="100" style={style} />
+      <circle className="find-reticle__arc" r="24" pathLength="100" style={style} />
+    </>
+  );
+}
+
+// 照準。直径 100px の円と破線の十字（濃い紫の縁取りに黄緑）。中心がクリックする位置。
+// マウスの端末では、プレイ中はずっと本物のカーソルを隠してこの照準を出す（クールタイムの前後で大きさが変わらないように、
+// カーソル画像とは切り替えない）。位置は posRef ではなく、マウスが動くたびに直接合わせる（Find 本体の effect）。
+// クールタイム中は円そのものが残り時間のぶんの弧になり、12時から時計回りに減っていく。十字は灰色になる。
+// タッチ操作だけの端末では、クールタイム中だけ最後にタップした位置（pos）に出す。
+const RETICLE_SIZE_PX = (RETICLE_RADIUS_PX * 50) / 24; // 円の半径が viewBox 上の 24 → RETICLE_RADIUS_PX になる大きさ
+const Reticle = forwardRef(function Reticle({ cooling, cooldownUntil, denied, pos }, ref) {
+  return (
+    <div
+      ref={ref}
+      className={cooling ? 'find-reticle is-cooling' : 'find-reticle'}
+      style={pos ? { transform: `translate(${pos.x}px, ${pos.y}px)` } : undefined}
+      aria-hidden="true"
+    >
+      <svg width={RETICLE_SIZE_PX} height={RETICLE_SIZE_PX} viewBox="-25 -25 50 50">
+        {cooling ? (
+          <>
+            {/* 減ったところ（うっすら残して、照らす範囲の大きさはわかるようにする） */}
+            <circle className="find-reticle__ghost" r="24" />
+            <g
+              transform="rotate(-90)"
+              key={`${cooldownUntil}-${denied?.at ?? 0}`}
+              className={denied ? 'is-denied' : undefined}
+            >
+              <CooldownArc until={cooldownUntil} denied={Boolean(denied)} />
+            </g>
+          </>
+        ) : (
+          <>
+            <circle className="find-reticle__edge" r="24" />
+            <circle className="find-reticle__ring" r="24" />
+          </>
+        )}
+        <path className="find-reticle__cross" d="M0 -24V24M-24 0H24" />
+      </svg>
+    </div>
+  );
+});
+
+// 待ち中にクリックしたとき、照準の下に1秒ほど出す「あと○秒」
+function CooldownDenied({ x, y, sec }) {
+  return (
+    <div className="find-cooldown" style={{ transform: `translate(${x}px, ${y}px)` }} aria-hidden="true">
+      <span className="find-cooldown__denied" style={{ top: RETICLE_RADIUS_PX + 10 }}>あと{sec}秒</span>
+    </div>
+  );
+}
+
+// HUD のクールタイム札の下に付ける、減っていく横棒
+function CooldownBar({ until }) {
+  const delay = useCooldownDelay(until);
+  return (
+    <span className="b-cooldown__bar" aria-hidden="true">
+      <span style={{ animationDuration: `${CLICK_COOLDOWN_MS}ms`, animationDelay: delay }} />
+    </span>
+  );
+}
+
 export default function Find({ siteId }) {
   const stageRef = useRef(null);
   const masksRef = useRef({});
@@ -217,6 +301,8 @@ export default function Find({ siteId }) {
   const [zoom, setZoom] = useState(1);
   const [error, setError] = useState('');
   const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [cooldownDenied, setCooldownDenied] = useState(null); // クールタイム中にクリックしたとき { at, sec }
+  const lastClickRef = useRef(null); // 最後にクリックした位置（クライアント座標）。マウスの無い端末でリングを出す場所
   const [saveAttempt, setSaveAttempt] = useState(0);
   const [animatingFound, setAnimatingFound] = useState([]);
   const [showFound, setShowFound] = useState(false);
@@ -250,6 +336,39 @@ export default function Find({ siteId }) {
 
   const remaining = Math.max(0, (deadline - now) / 1000);
   const cooldownRemaining = Math.max(0, (cooldownUntil - now) / 1000);
+  const cooling = phase === 'playing' && cooldownRemaining > 0;
+  // 照準（Reticle）を、マウスが動くたびに直接その位置へ動かす。
+  // React の再描画を待たないので遅れない。ステージの外では隠す（本物のカーソルに戻る）
+  const reticleRef = useRef(null);
+  const domReticle = phase === 'playing' && !touchOnly;
+  useLayoutEffect(() => {
+    if (!domReticle) return;
+    const el = reticleRef.current;
+    if (!el) return;
+    const place = (x, y, show) => {
+      el.style.transform = `translate(${x}px, ${y}px)`;
+      el.style.visibility = show ? '' : 'hidden';
+    };
+    const p = pointerRef.current;
+    place(p?.x ?? 0, p?.y ?? 0, Boolean(p));
+    const onMove = (e) => place(e.clientX, e.clientY, Boolean(e.target.closest?.('.stage-overlay')));
+    // ステージがウインドウの端に接している所からマウスを外に出すと pointermove が来ないので、
+    // ウインドウから出たとき・別のウインドウに切り替えたときにも隠す
+    const hide = () => {
+      el.style.visibility = 'hidden';
+    };
+    const onOut = (e) => {
+      if (!e.relatedTarget) hide();
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerout', onOut);
+    window.addEventListener('blur', hide);
+    return () => {
+      window.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerout', onOut);
+      window.removeEventListener('blur', hide);
+    };
+  }, [domReticle]);
   const trimmedName = playerName.trim();
   const nameValid = trimmedName.length > 0 && trimmedName.length <= 20;
 
@@ -333,10 +452,18 @@ export default function Find({ siteId }) {
   }, [phase, game, saveAttempt]);
 
   const onStageClick = (e) => {
-    if (phase !== 'playing' || Date.now() < cooldownUntil) return;
+    if (phase !== 'playing') return;
+    lastClickRef.current = { x: e.clientX, y: e.clientY };
+    if (Date.now() < cooldownUntil) {
+      // 黙って無視せず、待ち中であることを照準の上で知らせる
+      setCooldownDenied({ at: Date.now(), sec: Math.ceil((cooldownUntil - Date.now()) / 1000) });
+      setNow(Date.now());
+      return;
+    }
     const startCooldown = () => {
       const until = Date.now() + CLICK_COOLDOWN_MS;
       setCooldownUntil(until);
+      setCooldownDenied(null);
       setNow(Date.now());
     };
     const { x, y } = stageRef.current.toStagePoint(e.clientX, e.clientY);
@@ -356,7 +483,14 @@ export default function Find({ siteId }) {
       }
       const finderScore = Math.round(100 + 20 * Math.max(0, (deadline - Date.now()) / 1000) / game.timeLimit);
       setTotalScore((prev) => prev + finderScore);
-      api.reportFound(game.gameId, hit.id, finderScore, activePlayerNameRef.current ).catch(() => {});
+      // 点数はサーバーが決める。表示はすぐに出し、記録された点数が届いたらそれに合わせる
+      api.reportFound(game.gameId, hit.id, finderScore, activePlayerNameRef.current)
+        .then((res) => {
+          if (Number.isFinite(res?.score) && res.score !== finderScore) {
+            setTotalScore((prev) => prev + res.score - finderScore);
+          }
+        })
+        .catch(() => {});
       setAnimatingFound((af) => [...af, hit.id]);
       setTimeout(() => {
         setAnimatingFound((a) => a.filter((id) => id !== hit.id));
@@ -523,7 +657,10 @@ useEffect(() => {
             <>
               {cooldownRemaining > 0 && (
                 <span className="b-cooldown" title="クールタイム中はクリックできません">
-                  <Icon name="hourglass" size={16} />{Math.ceil(cooldownRemaining)}秒
+                  <span className="b-cooldown__label">
+                    <Icon name="hourglass" size={16} />{Math.ceil(cooldownRemaining)}秒
+                  </span>
+                  <CooldownBar key={cooldownUntil} until={cooldownUntil} />
                 </span>
               )}
               <span className="b-found" role="img" aria-label={`${total}体中${found.length}体発見`}>
@@ -545,6 +682,27 @@ useEffect(() => {
           {over && <Sticker as="a" href={`#/find?site=${siteId}&t=${Date.now()}`} size="s" color="find" tilt={2}>もう一度</Sticker>}
         </div>
       </header>
+
+      {domReticle && (
+        <Reticle ref={reticleRef} cooling={cooling} cooldownUntil={cooldownUntil} denied={cooldownDenied} />
+      )}
+      {touchOnly && cooling && lastClickRef.current && (
+        <Reticle
+          key={cooldownUntil}
+          cooling
+          cooldownUntil={cooldownUntil}
+          denied={cooldownDenied}
+          pos={lastClickRef.current}
+        />
+      )}
+      {cooling && cooldownDenied && lastClickRef.current && (
+        <CooldownDenied
+          key={cooldownDenied.at}
+          x={lastClickRef.current.x}
+          y={lastClickRef.current.y}
+          sec={cooldownDenied.sec}
+        />
+      )}
 
     {/*矢印のヒント表示ここから*/}
       {activeArrow && (
@@ -598,7 +756,7 @@ useEffect(() => {
             pointerRef.current = null;
             scheduleAim();
           },
-          className: `stage-overlay ${phase === 'playing' ? 'seeking' : ''}`,
+          className: `stage-overlay ${phase === 'playing' ? 'seeking' : ''} ${domReticle ? 'dom-reticle' : ''}`,
         }}
       >
         {/* 照準に照らされたときの影。照準と重なっている間だけ出す（画面に見えている手がかりと同じ） */}

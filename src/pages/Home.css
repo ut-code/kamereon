@@ -5,22 +5,22 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 30px;
+  gap: 40px;
   box-sizing: border-box;
-  max-width: 1280px;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 30px 56px 40px;
+  padding: 36px 56px 40px;
 }
-.b-home__rules.b-sticker { position: absolute; top: 30px; right: 56px; height: 50px; padding: 0 22px; font-size: 20px; }
+.b-home__rules.b-sticker { position: absolute; top: 36px; right: 56px; height: 60px; padding: 0 26px; font-size: 24px; }
 
 /* ロゴ。札の大きさは画面の幅に合わせて縮める */
 .b-logo {
-  --tile: clamp(52px, 12vw, 128px);
-  --tile-s: clamp(34px, 5.5vw, 58px);
+  --tile: clamp(56px, 14vw, 184px);
+  --tile-s: clamp(36px, 6.5vw, 84px);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
   margin: 0;
   font-family: var(--font-display);
   font-weight: 400;
@@ -49,14 +49,15 @@
 /* 「オ」は地の色に溶け込んだカメレオン。破線の輪郭だけ見せる */
 .b-logo__tile--camo { border: max(3px, calc(var(--tile) * .04)) dashed var(--camo); background: var(--bg); box-shadow: none; color: var(--camo); }
 
-.b-home__modes { display: flex; flex-wrap: wrap; justify-content: center; gap: 44px; width: 100%; padding-top: 6px; }
-.b-mode.b-sticker { gap: 18px; width: 380px; max-width: 100%; }
+.b-home__modes { display: flex; flex-wrap: wrap; justify-content: center; gap: 56px; width: 100%; padding-top: 10px; }
+.b-mode.b-sticker { gap: 22px; width: 480px; max-width: 100%; height: 150px; font-size: 64px; }
 
 /* ランキングの紙 */
 .b-rankings.b-board { max-width: 1020px; margin-top: 4px; }
 .b-board__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
 .b-board__head h2 { margin: 0; font: 400 30px var(--font-display); }
 .b-board__periods { display: flex; gap: 14px; }
+.b-board__note { margin: -8px 0 0; color: var(--muted); font-size: 14px; font-weight: 700; }
 .b-board__lists { display: flex; flex-wrap: wrap; gap: 48px; }
 .b-rankings__error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 16px; background: var(--hide); font-size: 15px; font-weight: 800; }
 
@@ -108,10 +109,11 @@
   flex-direction: column;
   gap: 30px;
   box-sizing: border-box;
-  max-width: 1280px;
+  max-width: 1440px;
   margin: 0 auto;
   padding: 30px 56px 40px;
 }
+.b-flow .b-lead { font-size: 22px; }
 .b-flowhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
 .b-flowhead__group { display: flex; align-items: center; gap: 22px; }
 
@@ -119,14 +121,15 @@
 .b-preview { position: relative; overflow: hidden; background: var(--sub); }
 .b-preview img { position: absolute; top: 0; left: 0; display: block; width: 100%; height: auto; pointer-events: none; }
 
-/* ページ選択。ページを1枚ずつテープで貼った札にする。札全体がリンク */
-.b-sites { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 24px; align-items: start; padding-top: 22px; }
+/* ページ選択。ページを1枚ずつテープで貼った札にする。札全体がリンク。
+   ページの数だけの列で横幅いっぱいに広げる（auto-fit。空の列を作らない）。狭いときは折り返す */
+.b-sites { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 36px; align-items: start; padding-top: 26px; }
 .b-site {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px 14px 22px;
+  gap: 18px;
+  padding: 18px 18px 26px;
   background: var(--paper);
   box-shadow: 0 6px 0 rgba(42, 22, 80, .4);
   color: var(--ink);
@@ -134,16 +137,16 @@
   transform: rotate(var(--tilt, 0deg));
   -webkit-tap-highlight-color: transparent;
 }
-.b-site__tape { position: absolute; z-index: 1; top: -14px; left: 50%; width: 96px; height: 28px; margin-left: -48px; transform: rotate(var(--tilt, 0deg)); }
+.b-site__tape { position: absolute; z-index: 1; top: -16px; left: 50%; width: 120px; height: 32px; margin-left: -60px; transform: rotate(var(--tilt, 0deg)); }
 .b-site__preview { width: 100%; aspect-ratio: 4 / 5; }
-.b-site h2 { min-height: 2.6em; margin: 0; font: 400 19px/1.3 var(--font-display); }
+.b-site h2 { min-height: 2.6em; margin: 0; font: 400 25px/1.3 var(--font-display); }
 .b-site .b-sticker { align-self: flex-end; }
 /* 札はホバーしても傾きも位置も変えない。動くのは「選択する」に乗ったときだけ（.b-sticker のホバー・押した時） */
 a.b-site:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
 /* ページが4つに満たないときの空き */
 .b-site--soon { align-self: stretch; align-items: center; justify-content: center; box-sizing: border-box; min-height: 300px; border: 5px dashed var(--camo); background: none; box-shadow: none; color: var(--camo); }
-.b-site--soon strong { font: 400 72px/1 var(--font-display); }
-.b-site--soon span { font: 400 22px var(--font-display); }
+.b-site--soon strong { font: 400 96px/1 var(--font-display); }
+.b-site--soon span { font: 400 28px var(--font-display); }
 
 /* 選んだページ。写真のように貼ったページと「探しに行く」 */
 .b-ready { display: grid; grid-template-columns: minmax(0, 1fr) 380px; align-items: center; gap: 56px; padding-top: 6px; }
@@ -161,7 +164,9 @@ a.b-site:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; 
 @media (max-width: 760px) {
   .b-flow { gap: 24px; padding: 20px 16px 40px; }
   .b-flowhead__group { gap: 16px; }
+  .b-flow .b-lead { font-size: 17px; }
   .b-sites { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 16px; padding-top: 18px; }
+  .b-site__tape { top: -14px; width: 84px; height: 26px; margin-left: -42px; }
   .b-site { gap: 10px; padding: 10px 10px 16px; }
   .b-site h2 { font-size: 16px; }
   .b-site .b-sticker { height: 40px; padding: 0 12px; font-size: 15px; }
