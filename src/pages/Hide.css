@@ -405,8 +405,6 @@
 /* ---- 塗るパネルを大きめに。パネル・文字・ボタン・色の四角をひと回り大きくする ---- */
 /* 高さは中身に合わせ、上のツールバーと帯（約170px）の下に収まる高さまでにする。はみ出す分はパネルの中でスクロール */
 .hide-paint-modal { width: min(560px, calc(100vw - 24px)); height: auto; max-height: calc(100dvh - 182px); }
-/* 塗るパネルを開いている間は、舞台の右側にパネルの場所を空ける（Webページをパネルで隠さない） */
-.b-game.has-paint-dock .stage-scroll { margin-right: var(--paint-dock-width); }
 .hide-paint-panel { gap: 12px; padding: 10px 18px 16px; }
 .hide-paint-modal .b-tab { height: 42px; padding: 0 12px; font-size: 16px; }
 .hide-paint-modal .b-tab--icon { width: 48px; }

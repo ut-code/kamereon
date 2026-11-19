@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SiteStage from "../components/SiteStage.jsx";
 import { siteImageUrl } from "../../server/sites.js";
 import Icon from "../components/Icon.jsx";
@@ -438,7 +438,6 @@ export default function Hide({ siteId }) {
   // EyeDropper API の無いブラウザで、ページ画像から色を拾っている最中か
   const [pickingFromPage, setPickingFromPage] = useState(false);
   // 塗るパネルのために舞台の右側に空ける幅 (px)。0 ならパネルは閉じている
-  const [paintDockWidth, setPaintDockWidth] = useState(0);
   const [size, setSize] = useState(6);
   const [splashes, setSplashes] = useState([]);
   const [carried, setCarried] = useState(null);
@@ -1168,8 +1167,8 @@ export default function Hide({ siteId }) {
 
   useEffect(() => {
     if (!showPaint) return;
-    // 舞台の右側にパネルの場所を空け（下の paintDockWidth）、パネルはそこに置く。Webページの上には重ねない。
-    // 場所を空けると舞台が狭くなるので、塗っている人型が見えなくなったら横にスクロールして見えるようにする
+    // パネルは Webページの上に重ねて置く（舞台の幅は変えないので、Webページはずれない）。
+    // 右端に置き、塗っている人型がパネルの下に隠れるときだけ左端に置く。パネルはドラッグでも動かせる
     const el = paintDialogRef.current;
     const pageWidth = (stageRef.current?.size.width ?? 0) * zoom;
     const spare = window.innerWidth - pageWidth - PAINT_PANEL_MARGIN * 3;
@@ -1179,9 +1178,12 @@ export default function Hide({ siteId }) {
       Math.max(PAINT_PANEL_MIN_WIDTH, Math.floor(spare)),
     );
     el.style.width = `${width}px`;
-    setPaintDockWidth(width + PAINT_PANEL_MARGIN * 2);
+    const figure = canvasRefs.current[activeKey]?.getBoundingClientRect();
+    const rightX = window.innerWidth - width - PAINT_PANEL_MARGIN;
+    const coversFigure = figure && figure.right > rightX;
+    const fitsLeft = !figure || figure.left > PAINT_PANEL_MARGIN + width;
     paintDialogPositionRef.current = placePaintDialog({
-      x: window.innerWidth - width - PAINT_PANEL_MARGIN,
+      x: coversFigure && fitsLeft ? PAINT_PANEL_MARGIN : rightX,
       y: 0, // ヘッダーと帯のすぐ下（placePaintDialog が下限にそろえる）
     });
     const relayout = () => placePaintDialog();
@@ -1189,7 +1191,6 @@ export default function Hide({ siteId }) {
     window.addEventListener("blur", onPointerUp);
     window.addEventListener("blur", endPaintDialogDrag);
     return () => {
-      setPaintDockWidth(0);
       window.removeEventListener("resize", relayout);
       window.removeEventListener("blur", onPointerUp);
       window.removeEventListener("blur", endPaintDialogDrag);
@@ -1198,17 +1199,6 @@ export default function Hide({ siteId }) {
       onPointerUp();
     };
   }, [showPaint]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // パネルの場所を空けて舞台が狭くなったら（描画の前に）、塗っている人型が見えるように横にスクロールする
-  useLayoutEffect(() => {
-    if (!paintDockWidth) return;
-    const figure = canvasRefs.current[activeKey]?.getBoundingClientRect();
-    const view = document.querySelector(".stage-scroll")?.getBoundingClientRect();
-    if (!figure || !view) return;
-    const pad = 24;
-    if (figure.right > view.right - pad) stageRef.current?.scrollBy(figure.right - view.right + pad, 0);
-    else if (figure.left < view.left + pad) stageRef.current?.scrollBy(figure.left - view.left - pad, 0);
-  }, [paintDockWidth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // キーボード：矢印で移動、Ctrl+Z で元に戻す、Ctrl+Shift+Z / Ctrl+Y でやり直す（選択中の人型に対して）
   useEffect(() => {
@@ -1413,10 +1403,9 @@ export default function Hide({ siteId }) {
 
   return (
     <div
-      className={["b-game", pickingFromPage && "is-picking-color", paintDockWidth > 0 && "has-paint-dock"]
+      className={["b-game", pickingFromPage && "is-picking-color"]
         .filter(Boolean)
         .join(" ")}
-      style={paintDockWidth > 0 ? { "--paint-dock-width": `${paintDockWidth}px` } : undefined}
     >
       {/* 上の段：ホーム・モード名・遊び方・残り時間と、元に戻す・名前・保存／下の段：道具・体型と、枠の表示 */}
       <header className="b-tools">
