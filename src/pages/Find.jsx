@@ -16,6 +16,63 @@ const SHADOW_MAX_EXTRA = 12; // 光源から離れるほど増える影のずれ
 const SHADOW_DIST_RATIO = 0.2; // 光源からの距離に対する影のずれの割合
 const TILE = 256; // カメレオンを描く canvas タイルの1辺 (ページpx)
 const TILE_SCALE = 2; // タイルの解像度の倍率（カメレオン画像の解像度 FIG_SCALE と同じ）
+const HINT_THRESHOLDS = [120, 90, 60, 30, 10]; // 1分30秒, 1分, 30秒, 10秒
+const HINT_DURATION_MS = 1500; // ヒントを表示する時間（4.5秒）
+const RETICLE_ARROW_DIST = 84;
+
+
+// ヒントのときに効果音を鳴らす
+function playHintSound() {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(1318.51, now + 0.08);
+
+    // 音量のフェードアウト
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.25, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.56);
+    osc.onended = () => ctx.close();
+  } catch {
+    // 音声再生がブロックされた場合は無視
+  }
+}
+
+function getDirectionInfo(dx, dy) {
+  const deg = (Math.atan2(dy, dx) * 180) / Math.PI; // -180 ~ 180 (右が0, 下が90)
+  const snapped = Math.round(deg / 45) * 45;
+  const rad = (snapped * Math.PI) / 180;
+  const map = {
+    0: { key: 'right', arrowDeg: 90 },
+    45: { key: 'bottom-right', arrowDeg: 135 },
+    90: { key: 'bottom', arrowDeg: 180 },
+    135: { key: 'bottom-left', arrowDeg: 225 },
+    180: { key: 'left', arrowDeg: 270 },
+    '-180': { key: 'left', arrowDeg: 270 },
+    '-135': { key: 'top-left', arrowDeg: 315 },
+    '-90': { key: 'top', arrowDeg: 0 },
+    '-45': { key: 'top-right', arrowDeg: 45 },
+  };
+  const info = map[snapped] ?? { key: 'top', arrowDeg: 0 };
+  return {
+    ...info,
+    offsetX: Math.round(Math.cos(rad) * RETICLE_ARROW_DIST),
+    offsetY: Math.round(Math.sin(rad) * RETICLE_ARROW_DIST),
+  };
+}
 
 // カメレオンの画像を読み込み、不透明ピクセルをクリックしたかどうかを判定するためのマスクも作る
 async function loadFigure(src) {
@@ -170,6 +227,12 @@ export default function Find({ siteId }) {
   const activePlayerNameRef = useRef('ななしのハンター');
   const playerNameInputRef = useRef(null);
 
+  const [hintUntil, setHintUntil] = useState(0);
+  const [hintCount, setHintCount] = useState(null);
+  // hint の中身: { type: 'in-view', count: number, flashKey: number } または { type: 'arrow', dirKey: string, arrowDeg: number }
+  const triggeredHintsRef = useRef(new Set());
+  const hintTimerRef = useRef(null);
+
   useLayoutEffect(() => {
     if (phase === 'intro') {
       playerNameInputRef.current?.select();
@@ -195,6 +258,10 @@ export default function Find({ siteId }) {
     setPhase('starting');
     setError('');
     setTotalScore(0);
+    triggeredHintsRef.current = new Set();
+    setHintUntil(0);
+    setHintCount(null);
+    clearTimeout(hintTimerRef.current);
     try {
       activePlayerNameRef.current = trimmedName;
 
@@ -357,6 +424,71 @@ export default function Find({ siteId }) {
     return () => clearInterval(interval);
   }, [phase, game]);
 
+useEffect(() => {
+    if (phase !== 'playing' || !game?.chameleons) return;
+
+    const hitThreshold = HINT_THRESHOLDS.find(
+      (sec) => remaining <= sec && remaining > 0 && !triggeredHintsRef.current.has(sec),
+    );
+    if (!hitThreshold) return;
+
+    HINT_THRESHOLDS.forEach((sec) => {
+      if (remaining <= sec) triggeredHintsRef.current.add(sec);
+    });
+
+    const unfound = game.chameleons.filter((c) => !found.includes(c.id));
+    if (unfound.length === 0) return;
+
+    // メッセージ＆効果音用の処理
+    if (stageRef.current) {
+      const viewRect = stageRef.current.viewRect();
+      const inViewCount = unfound.filter(
+        (c) =>
+          c.x + c.w >= viewRect.left &&
+          c.x <= viewRect.right &&
+          c.y + c.h >= viewRect.top &&
+          c.y <= viewRect.bottom,
+      ).length;
+      setHintCount(inViewCount);
+      playHintSound();
+    }
+
+    setHintUntil(Date.now() + HINT_DURATION_MS);
+  }, [phase, remaining, game, found]);
+
+  // 矢印の位置計算（※ pointerRef.current のnullチェックを追加）
+  let activeArrow = null;
+  if (phase === 'playing' && now < hintUntil && game?.chameleons && stageRef.current && pointerRef.current) {
+    const unfound = game.chameleons.filter((c) => !found.includes(c.id));
+    if (unfound.length > 0) {
+      // 照準位置（ページ座標）。ステージ外にカーソルがある場合は画面中心を基準にする
+      const origin =
+        aim ??
+        (pointerPos.current.x > -9000 ? pointerPos.current : stageRef.current.viewCenter());
+
+      let nearest = null;
+      let minDist = Infinity;
+      for (const c of unfound) {
+        const cx = c.x + c.w / 2;
+        const cy = c.y + c.h / 2;
+        const d = Math.hypot(cx - origin.x, cy - origin.y);
+        if (d < minDist) {
+          minDist = d;
+          nearest = { cx, cy };
+        }
+      }
+      if (nearest) {
+        const dir = getDirectionInfo(nearest.cx - origin.x, nearest.cy - origin.y);
+        activeArrow = {
+          ...dir,
+          x: pointerRef.current.x + dir.offsetX,
+          y: pointerRef.current.y + dir.offsetY,
+        };
+      }
+    }
+  }
+
+  // 終わったときにタイマーの代わりに出す札（タイムアップ・全員発見・途中で終了）
   const result = remaining <= 0 ? { text: 'タイムアップ！', color: 'hide' }
     : found.length === total ? { text: '全員発見！', color: 'find' }
     : { text: '終了', color: 'paper' };
@@ -413,6 +545,37 @@ export default function Find({ siteId }) {
           {over && <Sticker as="a" href={`#/find?site=${siteId}&t=${Date.now()}`} size="s" color="find" tilt={2}>もう一度</Sticker>}
         </div>
       </header>
+
+    {/*矢印のヒント表示ここから*/}
+      {activeArrow && (
+        <div
+          className="find-reticle-arrow"
+          style={{ left: activeArrow.x, top: activeArrow.y }}
+          aria-hidden="true"
+        >
+          <svg
+            viewBox="0 0 40 40"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ transform: `rotate(${activeArrow.arrowDeg}deg)` }}
+          >
+            <path d="M20 33V7M8 19l12-12 12 12" />
+          </svg>
+        </div>
+      )}
+      {/*矢印のヒント表示ここまで*/}
+
+      {/* メッセージのヒント表示ここから */}
+      {phase === 'playing' && now < hintUntil && hintCount !== null && (
+        <div className="find-inview-toast is-large" role="status" aria-live="polite">
+          この画面内にカメレオンが <strong>{hintCount}</strong> 体います
+        </div>
+      )}
+      {/* メッセージのヒント表示ここまで */}
+
       <SiteStage
         ref={stageRef}
         siteId={siteId}
