@@ -48,7 +48,7 @@ const TOOLS = [
 ];
 
 // 手足の可動域を収めつつ、カメレオンと周囲の背景に寄った表示にする。
-const HIDE_TIME_LIMIT_SEC = 3 * 60;
+const HIDE_TIME_LIMIT_SEC = 5 * 60;
 const formatTime = (seconds) => {
   const whole = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
@@ -2086,7 +2086,7 @@ export default function Hide({ siteId }) {
           <p>
             {timeUp ? (
               <>
-                3分が経過したので、編集を終了しました。
+                {HIDE_TIME_LIMIT_SEC / 60}分が経過したので、編集を終了しました。
                 <br />
                 今の色・ポーズ・場所で隠せます。
               </>
