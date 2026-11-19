@@ -2,6 +2,16 @@ import express from 'express';
 import { SITES } from './sites.js';
 
 const TIME_LIMIT_SEC = 180;
+// 点数はブラウザから送られた値を使わず、サーバーで決める（API に直接送って点数を捏造できないようにする）。
+// 見つけたとき：1体 100点 + 早さのボーナス最大 20点（src/pages/Find.jsx の表示と同じ式）
+const FOUND_BASE_SCORE = 100;
+const FOUND_SPEED_BONUS = 20;
+// クリックしたあとのクールタイム（src/pages/Find.jsx の CLICK_COOLDOWN_MS と同じ）。
+// n 体目を見つけるには、少なくとも (n - 1) 回ぶんのクールタイムが経っているはず。通信の揺れの分だけ少し甘くする
+const CLICK_COOLDOWN_SEC = 5;
+const COOLDOWN_SLACK_SEC = 0.5;
+// 隠れた側の点数：画面に映っている間、照準との距離に応じて毎秒 1〜3 点。1ゲームで出せるのは最大でこれだけ
+const HIDE_SCORE_PER_SEC_MAX = 3;
 const MAX_IMAGE_BYTES = 400_000;
 const GAME_CANDIDATES = 300; // 重ならない組み合わせを探すために、ランダムな順で読む候補の数
 const PICK_ATTEMPTS = 30; // 候補の順番を変えて選び直す回数。一番多く選べた組み合わせを使う
@@ -38,6 +48,16 @@ function pickNonOverlapping(candidates, limit) {
   }
   return best;
 }
+
+// デイリーランキングの1日の区切り（日本時間の0時）。started_at・created_at は toISOString() の UTC で保存しているので、
+// 今日の0時（日本時間）を同じ形式の文字列にして、文字列の大小で比べる
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+function startOfTodayJst(now = Date.now()) {
+  const jst = new Date(now + JST_OFFSET_MS);
+  return new Date(Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate()) - JST_OFFSET_MS).toISOString();
+}
+// ?period=daily なら今日の0時（日本時間）以降、それ以外は全期間
+const periodStart = (req) => (req.query?.period === 'daily' ? startOfTodayJst() : '');
 
 const route = (handler) => (req, res, next) => {
   Promise.resolve(handler(req, res)).catch(next);
@@ -134,7 +154,8 @@ export function createApi(db) {
       INSERT INTO chameleons (id, site, name, x, y, w, h, image, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(id, site, cleanName, x, y, w, h, image, new Date().toISOString()).run();
-    res.status(201).json({ id });
+    // 名前が被っていたときは連番を付けて保存するので、実際に保存した名前も返す
+    res.status(201).json({ id, name: cleanName });
   }));
 
   api.post('/games', route(async (req, res) => {
@@ -179,34 +200,42 @@ export function createApi(db) {
   api.post('/games/:gameId/found', route(async (req, res) => {
     const game = await db.prepare('SELECT * FROM games WHERE id = ?').bind(req.params.gameId).first();
     if (!game) return res.status(404).json({ error: 'game not found' });
-    const { chameleonId, score = 0, playerName } = req.body ?? {};
+    // score は古いブラウザとの互換のために受け取るだけで、使わない
+    const { chameleonId, playerName } = req.body ?? {};
     if (!JSON.parse(game.chameleon_ids).includes(chameleonId)) {
       return res.status(400).json({ error: 'not in this game' });
     }
-    if (!validScore(score)) return res.status(400).json({ error: 'invalid score' });
     const elapsed = (Date.now() - Date.parse(game.started_at)) / 1000;
     if (elapsed > TIME_LIMIT_SEC + 10) return res.status(409).json({ error: 'time over' });
+    // クールタイムを守っていたら、すでに見つけた数ぶんの時間は経っているはず。それより速い報告は記録しない
+    const foundSoFar = JSON.parse(game.found_ids).length;
+    const allowedCount = Math.floor(elapsed / (CLICK_COOLDOWN_SEC - COOLDOWN_SLACK_SEC)) + 1;
+    if (foundSoFar >= allowedCount) return res.status(429).json({ error: 'too fast' });
+    const remaining = Math.max(0, TIME_LIMIT_SEC - elapsed);
+    const score = Math.round(FOUND_BASE_SCORE + (FOUND_SPEED_BONUS * remaining) / TIME_LIMIT_SEC);
     const cleanPlayerName = String(playerName ?? '').trim().slice(0, 20) || game.player_name;
 if (!cleanPlayerName) return res.status(400).json({ error: 'ゲームに表示するなまえを入力してください' });
 
     // 判定も更新と同じトランザクションで行い、同時報告と再送の二重計上を防ぐ。
     const results = await db.batch([
+      // 同時に送られた報告でも数の上限を超えないよう、見つけた数の確認も同じ文の中で行う
       db.prepare(`
         UPDATE chameleons SET found = found + 1 WHERE id = ? AND EXISTS (
-          SELECT 1 FROM games WHERE id = ? AND NOT EXISTS (
+          SELECT 1 FROM games WHERE id = ? AND json_array_length(games.found_ids) < ? AND NOT EXISTS (
             SELECT 1 FROM json_each(games.found_ids) WHERE value = ?
           )
         )
-      `).bind(chameleonId, game.id, chameleonId),
+      `).bind(chameleonId, game.id, allowedCount, chameleonId),
       db.prepare(`
         UPDATE games SET found_ids = json_insert(found_ids, '$[#]', ?), score = score + ?, player_name = ?
-        WHERE id = ? AND NOT EXISTS (
+        WHERE id = ? AND json_array_length(found_ids) < ? AND NOT EXISTS (
           SELECT 1 FROM json_each(games.found_ids) WHERE value = ?
         )
-      `).bind(chameleonId, Math.round(score), cleanPlayerName, game.id, chameleonId),
+      `).bind(chameleonId, score, cleanPlayerName, game.id, allowedCount, chameleonId),
     ]);
     if (results[1].meta.changes === 0) return res.json({ ok: true, alreadyFound: true });
-    res.json({ ok: true });
+    // 実際に記録した点数を返す（画面の表示をこれに合わせる）
+    res.json({ ok: true, score });
   }));
 
   api.post('/games/:gameId/finish-hide-scores', route(async (req, res) => {
@@ -220,33 +249,40 @@ if (!cleanPlayerName) return res.status(400).json({ error: 'ゲームに表示�
       !ids.includes(id) || !data || typeof data.wasVisible !== 'boolean' || !validScore(data.score))) {
       return res.status(400).json({ error: 'invalid hide scores' });
     }
+    // ゲーム開始から今までに出せる点数を上限にする（毎秒最大 3 点 × 経過秒数。制限時間を超えた分は数えない）
+    const elapsed = (Date.now() - Date.parse(game.started_at)) / 1000;
+    const maxHideScore = Math.ceil(HIDE_SCORE_PER_SEC_MAX * Math.min(Math.max(0, elapsed), TIME_LIMIT_SEC));
     const statements = entries.filter(([, data]) => data.wasVisible).map(([id, data]) =>
       db.prepare(`
         UPDATE chameleons SET total_hide_score = total_hide_score + ?, view_count = view_count + 1
         WHERE id = ? AND EXISTS (SELECT 1 FROM games WHERE id = ? AND finished = 0)
-      `).bind(Math.round(data.score), id, game.id));
+      `).bind(Math.min(Math.round(data.score), maxHideScore), id, game.id));
     statements.push(db.prepare('UPDATE games SET finished = 1 WHERE id = ? AND finished = 0').bind(game.id));
     await db.batch(statements);
     res.json({ ok: true });
   }));
 
+  // 見つけ上手：プレイヤーごとの1ゲームの最高点。デイリーは今日始めたゲームだけ
   api.get('/rankings/finder', route(async (req, res) => {
     const { results } = await db.prepare(`
       SELECT id, player_name, MAX(CAST(score AS INTEGER)) AS score, started_at
-FROM games
-WHERE player_name IS NOT NULL AND player_name != '' AND CAST(score AS INTEGER) > 0
-GROUP BY player_name
-ORDER BY score DESC LIMIT 10
-    `).all();
+      FROM games
+      WHERE player_name IS NOT NULL AND player_name != '' AND CAST(score AS INTEGER) > 0
+        AND started_at >= ?
+      GROUP BY player_name
+      ORDER BY score DESC LIMIT 10
+    `).bind(periodStart(req)).all();
     res.json(results);
   }));
 
+  // 隠れ上手：カメレオンごとの平均点（評価3回以上）。デイリーは今日隠れたカメレオンだけ
   api.get('/rankings/hider', route(async (req, res) => {
     const { results } = await db.prepare(`
       SELECT id, name, site, searched, found, total_hide_score, view_count,
              total_hide_score * 1.0 / view_count AS avg_score
-      FROM chameleons WHERE view_count >= 3 ORDER BY avg_score DESC LIMIT 10
-    `).all();
+      FROM chameleons WHERE view_count >= 3 AND created_at >= ?
+      ORDER BY avg_score DESC LIMIT 10
+    `).bind(periodStart(req)).all();
     res.json(results);
   }));
 

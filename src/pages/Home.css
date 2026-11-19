@@ -57,6 +57,7 @@
 .b-board__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
 .b-board__head h2 { margin: 0; font: 400 30px var(--font-display); }
 .b-board__periods { display: flex; gap: 14px; }
+.b-board__note { margin: -8px 0 0; color: var(--muted); font-size: 14px; font-weight: 700; }
 .b-board__lists { display: flex; flex-wrap: wrap; gap: 48px; }
 .b-rankings__error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 8px 8px 16px; background: var(--hide); font-size: 15px; font-weight: 800; }
 
