@@ -180,14 +180,14 @@ export class Painter {
     }
   }
 
-  paintPixel(i, hsl, erase) {
+   paintPixel(i, hsl, erase) {
     if (erase) {
       this.coats[i] = 0;
       this.rgb.fill(255, i * 3, i * 3 + 3);
       return;
     }
-    this.coats[i]++;
-    const [r, g, b] = coatColor(hsl, this.coats[i]);
+    this.coats[i] = 1; // painted 判定用の印だけ残す（回数は数えない）
+    const [r, g, b] = coatColor(hsl, 1); // 常に1回目の色 = 完全上書き
     this.rgb[i * 3] = r;
     this.rgb[i * 3 + 1] = g;
     this.rgb[i * 3 + 2] = b;
