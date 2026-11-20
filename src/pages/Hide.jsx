@@ -48,7 +48,7 @@ const TOOLS = [
 ];
 
 // 手足の可動域を収めつつ、カメレオンと周囲の背景に寄った表示にする。
-const HIDE_TIME_LIMIT_SEC = 3 * 60;
+const HIDE_TIME_LIMIT_SEC = 5 * 60;
 const formatTime = (seconds) => {
   const whole = Math.max(0, Math.ceil(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
@@ -374,6 +374,13 @@ const SHAKE_TURN_WINDOW = 700;
 const SHAKE_TURNS_TO_CALM = 4;
 const hasEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
 const MAIN = "main";
+// 関節のつまみを描く SVG の、人型の枠からの余白 (ページpx)。つまみの当たり判定（半径 12px）が枠の外に出ても押せるように
+const JOINT_HANDLE_PAD = 24;
+// 塗るパネルの幅。パネルは舞台の右側に場所を空けて置き、Webページの上には重ねない。
+// 画面が広くてページの横に余る分があればそこまで広げ、狭いときは最小の幅にする
+const PAINT_PANEL_MAX_WIDTH = 560;
+const PAINT_PANEL_MIN_WIDTH = 440; // 色の四角と色コード・色相の欄が2列に並ぶ幅
+const PAINT_PANEL_MARGIN = 16; // 画面の端・舞台との間
 const ZOOM_MIN = 1,
   ZOOM_MAX = 4;
 
@@ -428,6 +435,9 @@ export default function Hide({ siteId }) {
   const [activeKey, setActiveKey] = useState(MAIN);
   const [tool, setTool] = useState("move");
   const [color, setColor] = useState("#9aa8b8");
+  // EyeDropper API の無いブラウザで、ページ画像から色を拾っている最中か
+  const [pickingFromPage, setPickingFromPage] = useState(false);
+  // 塗るパネルのために舞台の右側に空ける幅 (px)。0 ならパネルは閉じている
   const [size, setSize] = useState(6);
   const [splashes, setSplashes] = useState([]);
   const [carried, setCarried] = useState(null);
@@ -435,8 +445,12 @@ export default function Hide({ siteId }) {
   const [name, setName] = useState(() => getRandomName("hide"));
   const nameEdited = useRef(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  // 「ここに隠れる！」で名前入力を開いた時刻。開いている間は制限時間を止める（閉じたら止めた分だけ締切を延ばす）
+  const [pausedAt, setPausedAt] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState(null);
+  // 実際に保存された名前。被っていたときはサーバーが連番を付ける（「たろう」→「たろう2」）
+  const [savedName, setSavedName] = useState("");
   const [error, setError] = useState("");
   const [showHelp, setShowHelp] = useState(false);
   const [deadline, setDeadline] = useState(0);
@@ -494,7 +508,7 @@ export default function Hide({ siteId }) {
   const editingJoints = tool === "joints";
   const showPaint = Boolean(active) && tool !== "move" && !timeUp && !savedId;
   const remaining = deadline
-    ? Math.max(0, (deadline - (savedAt ?? now)) / 1000)
+    ? Math.max(0, (deadline - (pausedAt ?? savedAt ?? now)) / 1000)
     : HIDE_TIME_LIMIT_SEC;
   const editingLocked = timeUp || saving || Boolean(savedId);
 
@@ -505,7 +519,7 @@ export default function Hide({ siteId }) {
     Date.now() < deadlineRef.current;
 
   useEffect(() => {
-    if (!deadline || savedId || timeUp) return;
+    if (!deadline || savedId || timeUp || pausedAt) return;
     const tick = () => setNow(Date.now());
     const id = setInterval(tick, 250);
     window.addEventListener("focus", tick);
@@ -515,7 +529,23 @@ export default function Hide({ siteId }) {
       window.removeEventListener("focus", tick);
       document.removeEventListener("visibilitychange", tick);
     };
-  }, [deadline, savedId, timeUp]);
+  }, [deadline, savedId, timeUp, pausedAt]);
+
+  // 名前入力を開く・閉じる。開いている間は制限時間を止める
+  const openSaveModal = () => {
+    setPausedAt(Date.now());
+    setShowSaveModal(true);
+  };
+  const closeSaveModal = () => {
+    if (pausedAt) {
+      const resumed = Date.now();
+      deadlineRef.current += resumed - pausedAt;
+      setDeadline(deadlineRef.current);
+      setNow(resumed);
+    }
+    setPausedAt(null);
+    setShowSaveModal(false);
+  };
 
   // 拡大表示だけを別 canvas に写し、塗りと履歴は元の Painter に保持する。
   const syncPaintCanvas = () => {};
@@ -1036,7 +1066,7 @@ export default function Hide({ siteId }) {
   };
 
   useEffect(() => {
-    if (!deadline || now < deadline || timeUp || savedId || saving) return;
+    if (!deadline || now < deadline || timeUp || savedId || saving || pausedAt) return;
     colorPickerRef.current?.abort();
     colorPickerRef.current = null;
     endPaintDialogDrag();
@@ -1045,7 +1075,7 @@ export default function Hide({ siteId }) {
     setTool("move");
     setSplashes([]);
     setTimeUp(true);
-  }, [deadline, now, timeUp, savedId, saving]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deadline, now, timeUp, savedId, saving, pausedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const endDrag = () => onPointerUp();
@@ -1156,16 +1186,25 @@ export default function Hide({ siteId }) {
 
   useEffect(() => {
     if (!showPaint) return;
-    if (!paintDialogPositionRef.current) {
-      const el = paintDialogRef.current;
-      // 初回は右下に出す
-      paintDialogPositionRef.current = placePaintDialog({
-        x: window.innerWidth - el.offsetWidth - 16,
-        y: window.innerHeight - el.offsetHeight - 16,
-      });
-    } else {
-      placePaintDialog();
-    }
+    // パネルは Webページの上に重ねて置く（舞台の幅は変えないので、Webページはずれない）。
+    // 右端に置き、塗っている人型がパネルの下に隠れるときだけ左端に置く。パネルはドラッグでも動かせる
+    const el = paintDialogRef.current;
+    const pageWidth = (stageRef.current?.size.width ?? 0) * zoom;
+    const spare = window.innerWidth - pageWidth - PAINT_PANEL_MARGIN * 3;
+    const width = Math.min(
+      PAINT_PANEL_MAX_WIDTH,
+      window.innerWidth - PAINT_PANEL_MARGIN * 2,
+      Math.max(PAINT_PANEL_MIN_WIDTH, Math.floor(spare)),
+    );
+    el.style.width = `${width}px`;
+    const figure = canvasRefs.current[activeKey]?.getBoundingClientRect();
+    const rightX = window.innerWidth - width - PAINT_PANEL_MARGIN;
+    const coversFigure = figure && figure.right > rightX;
+    const fitsLeft = !figure || figure.left > PAINT_PANEL_MARGIN + width;
+    paintDialogPositionRef.current = placePaintDialog({
+      x: coversFigure && fitsLeft ? PAINT_PANEL_MARGIN : rightX,
+      y: 0, // ヘッダーと帯のすぐ下（placePaintDialog が下限にそろえる）
+    });
     const relayout = () => placePaintDialog();
     window.addEventListener("resize", relayout);
     window.addEventListener("blur", onPointerUp);
@@ -1245,8 +1284,75 @@ export default function Hide({ siteId }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [activeKey, active, showHelp]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // EyeDropper API の無いブラウザ（Safari・Firefox など）では、次にクリックしたページ画像の色を拾う。
+  // 拾っている間はカメレオンの操作やボタンを受け付けず、Esc やステージの外のクリックでやめる。
+  const pickColorFromPage = () => {
+    const dialog = paintDialogRef.current;
+    const controller = new AbortController();
+    colorPickerRef.current = controller;
+    onPointerUp();
+    dialog?.classList.add("is-picking-color");
+    setPickingFromPage(true);
+    let down = null;
+    const swallow = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const onDown = (e) => {
+      if (e.isPrimary === false) return;
+      swallow(e);
+      down = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    };
+    const onUp = (e) => {
+      if (!down || e.pointerId !== down.id) return;
+      swallow(e);
+      const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+      down = null;
+      // 指でスクロールしただけなら拾わずに続ける
+      if (moved > 8) return;
+      const stage = stageRef.current;
+      const onStage = e.target.closest?.(".stage-scroll");
+      const point = onStage && stage?.toStagePoint(e.clientX, e.clientY);
+      const hex = point ? stage.sampleColor(point.x, point.y) : null;
+      controller.abort();
+      if (hex && canEdit()) {
+        setColor(hex);
+        setTool("pen");
+      }
+    };
+    const onCancel = () => {
+      down = null;
+    };
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      swallow(e);
+      controller.abort();
+    };
+    const finish = () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onCancel, true);
+      window.removeEventListener("keydown", onKey, true);
+      // 拾ったクリックで、下にあるボタンなどが押されないようにする
+      window.addEventListener("click", swallow, true);
+      setTimeout(() => window.removeEventListener("click", swallow, true), 0);
+      if (colorPickerRef.current === controller) colorPickerRef.current = null;
+      dialog?.classList.remove("is-picking-color");
+      setPickingFromPage(false);
+    };
+    controller.signal.addEventListener("abort", finish, { once: true });
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onCancel, true);
+    window.addEventListener("keydown", onKey, true);
+  };
+
   const pickColor = async () => {
     if (!canEdit()) return;
+    if (!hasEyeDropper) {
+      pickColorFromPage();
+      return;
+    }
     const dialog = paintDialogRef.current;
     const controller = new AbortController();
     colorPickerRef.current = controller;
@@ -1297,13 +1403,14 @@ export default function Hide({ siteId }) {
     };
     try {
       const main = figs.find((f) => f.key === MAIN);
-      const { id } = await api.createChameleon({
+      const { id, name: storedName } = await api.createChameleon({
         site: siteId,
         name: name.trim(),
         ...toData(main),
         /* decoys: [],*/
       });
       setSavedAt(submittedAt);
+      setSavedName(storedName ?? name.trim());
       setSavedId(id);
     } catch (err) {
       saveLockRef.current = false;
@@ -1314,7 +1421,11 @@ export default function Hide({ siteId }) {
   };
 
   return (
-    <div className="b-game">
+    <div
+      className={["b-game", pickingFromPage && "is-picking-color"]
+        .filter(Boolean)
+        .join(" ")}
+    >
       {/* 上の段：ホーム・モード名・遊び方・残り時間と、元に戻す・名前・保存／下の段：道具・体型と、枠の表示 */}
       <header className="b-tools">
         <div className="b-tools__row">
@@ -1368,7 +1479,7 @@ export default function Hide({ siteId }) {
               color="hide"
               tilt={-2}
               disabled={!figs.length || saving || Boolean(savedId)}
-              onClick={() => setShowSaveModal(true)}
+              onClick={openSaveModal}
             >
               {saving ? "保存中…" : "ここに隠れる！"}
             </Sticker>
@@ -1473,17 +1584,54 @@ export default function Hide({ siteId }) {
                 onPointerCancel={onPointerUp}
                 onLostPointerCapture={onPointerUp}
               />
+              {/* 塗ったときの飛沫（表示だけ）。人型の canvas と同じ枠に重ね、位置と大きさは枠に対する % で置く */}
+              {f.key === activeKey && !carry && splashes.length > 0 && (
+                <div
+                  className="hide-splash-layer"
+                  style={{ left: f.x, top: f.y, width: w, height: h }}
+                  aria-hidden="true"
+                >
+                  {splashes.map((splash) => (
+                    <svg
+                      key={splash.id}
+                      className="hide-paint-splash"
+                      viewBox="0 0 100 100"
+                      style={{
+                        left: `${splash.x}%`,
+                        top: `${splash.y}%`,
+                        width: `${splash.size}%`,
+                        color: splash.color,
+                        "--splash-angle": `${(splash.id * 137.5) % 360}deg`,
+                      }}
+                      onAnimationEnd={() =>
+                        setSplashes((items) => items.filter((item) => item.id !== splash.id))
+                      }
+                    >
+                      <path d="M50 26C57 26 58 32 63 32L76 23Q82 20 79 27L71 40C77 45 73 49 79 53L90 59Q94 64 87 64L73 61C68 64 66 65 66 72L69 84Q68 90 64 84L55 73C49 71 46 76 41 71L28 82Q22 84 25 77L32 64C28 59 24 59 18 60Q10 58 18 54L28 49C31 44 25 39 30 34L24 21Q24 15 29 20L41 31C45 31 45 26 50 26Z" />
+                      <circle cx="16" cy="32" r="4" />
+                      <circle cx="44" cy="13" r="3" />
+                      <circle cx="85" cy="39" r="3.5" />
+                      <circle cx="81" cy="79" r="3" />
+                      <circle cx="43" cy="88" r="2.5" />
+                      <circle cx="13" cy="72" r="2" />
+                    </svg>
+                  ))}
+                </div>
+              )}
               {editingJoints && f.key === activeKey && !carry && (
+                // 人型の枠（＋つまみの余白）と同じ大きさの SVG にして、座標は人型の中心を原点にする（viewBox でずらす）。
+                // 1×1 の SVG からはみ出して描くと、Safari（WebKit）でははみ出した部分のつまみを押せない
                 <svg
                   className="hide-joint-overlay"
+                  viewBox={`${b.x - JOINT_HANDLE_PAD} ${b.y - JOINT_HANDLE_PAD} ${w + JOINT_HANDLE_PAD * 2} ${h + JOINT_HANDLE_PAD * 2}`}
                   style={{
                     position: "absolute",
-                    left: f.x - b.x,
-                    top: f.y - b.y,
+                    left: f.x - JOINT_HANDLE_PAD,
+                    top: f.y - JOINT_HANDLE_PAD,
                     right: "auto",
                     bottom: "auto",
-                    width: 1,
-                    height: 1,
+                    width: w + JOINT_HANDLE_PAD * 2,
+                    height: h + JOINT_HANDLE_PAD * 2,
                     overflow: "visible",
                     pointerEvents: "none",
                   }}
@@ -1582,6 +1730,12 @@ export default function Hide({ siteId }) {
           );
         })}
       </SiteStage>
+
+      {pickingFromPage && (
+        <div className="hide-pick-hint" role="status">
+          ページの拾いたい色のところをクリック（Esc でやめる）
+        </div>
+      )}
 
       {showPaint && (
         <aside
@@ -1813,11 +1967,16 @@ export default function Hide({ siteId }) {
                     if (canEdit()) setColor(value);
                   }}
                 >
-                  {hasEyeDropper && (
-                    <Tab onClick={pickColor} title="配置場所の背景から色を拾う">
-                      <Icon name="eyedropper" /> 色をとる
-                    </Tab>
-                  )}
+                  <Tab
+                    onClick={pickColor}
+                    title={
+                      hasEyeDropper
+                        ? "配置場所の背景から色を拾う"
+                        : "クリックしたページの色を拾う"
+                    }
+                  >
+                    <Icon name="eyedropper" /> 色をとる
+                  </Tab>
                   <Tab
                     onClick={() => editPaint("fillAll", color)}
                     title="全体を今の色で1回塗る"
@@ -1927,7 +2086,7 @@ export default function Hide({ siteId }) {
           className="hide-timeup"
           aria-labelledby="hide-timeup-title"
           /* 手動保存のときだけ、モーダルの外側をクリックして閉じられるようにする */
-          onBackdropClick={() => !timeUp && setShowSaveModal(false)}
+          onBackdropClick={() => !timeUp && !saving && closeSaveModal()}
         >
           <h2 id="hide-timeup-title" className="b-modal__title">
             {timeUp ? "タイムアップ！" : "隠れる準備完了！"}
@@ -1935,7 +2094,7 @@ export default function Hide({ siteId }) {
           <p>
             {timeUp ? (
               <>
-                3分が経過したので、編集を終了しました。
+                {HIDE_TIME_LIMIT_SEC / 60}分が経過したので、編集を終了しました。
                 <br />
                 今の色・ポーズ・場所で隠せます。
               </>
@@ -1944,10 +2103,33 @@ export default function Hide({ siteId }) {
                 この場所で隠れますか？
                 <br />
                 ランキングに登録する名前を決めてください。
+                <br />
+                名前を決めている間、残り時間は止まっています。
               </>
             )}
           </p>
-          onChange={(e) => { nameEdited.current = true; setName(e.target.value); }}
+          <input
+            type="text"
+            className="b-input hide-timeup-name"
+            aria-label="カメレオンの名前"
+            maxLength={20}
+            value={name}
+            onChange={(e) => { nameEdited.current = true; setName(e.target.value); }}
+            onFocus={(e) => {
+              // 全部選択するのは最初にカーソルが入ったときだけ。日本語入力の途中でカーソルが入り直したと
+              // 扱われる環境（Windows の Edge など）で、変換中の文字が選択されて消えたり確定したりしないようにする
+              if (e.target.dataset.selectedOnce) return;
+              e.target.dataset.selectedOnce = "1";
+              e.target.select();
+            }}
+            onKeyDown={(e) => {
+              // 日本語入力で変換を確定する Enter では保存しない（Safari は確定後に keyCode 229 で届く）
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+              if (e.key === "Enter" && name.trim() && !saving) save();
+            }}
+            disabled={saving}
+            autoFocus
+          />
           {error && (
             <p className="b-alert" role="alert">
               {error}
@@ -1956,7 +2138,7 @@ export default function Hide({ siteId }) {
           <div className="b-modal__actions">
             {/* 手動保存のときだけ「戻る」ボタンを表示 */}
             {!timeUp && (
-              <Sticker tilt={2} onClick={() => setShowSaveModal(false)}>
+              <Sticker tilt={2} onClick={closeSaveModal} disabled={saving}>
                 戻る
               </Sticker>
             )}
@@ -2003,8 +2185,14 @@ export default function Hide({ siteId }) {
             </h2>
           </div>
           <p>
-            「{name.trim()}」がページに潜みました。
+            「{savedName}」がページに潜みました。
             <br />
+            {savedName !== name.trim() && (
+              <>
+                同じ名前のカメレオンがいたので、この名前でランキングに載ります。
+                <br />
+              </>
+            )}
             何人に探され、何人に見つかったかはホームで確認できます。
           </p>
           <div className="b-modal__actions">

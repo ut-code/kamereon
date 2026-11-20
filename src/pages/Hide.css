@@ -160,6 +160,24 @@
 /* スポイトで色を拾う間は、ダイアログを素通りさせて背景を見せる */
 .hide-paint-modal.is-picking-color { pointer-events: none; }
 .hide-paint-modal.is-picking-color::backdrop { background: transparent; backdrop-filter: none; }
+/* EyeDropper API の無いブラウザで、ページ画像から色を拾う間 */
+.b-game.is-picking-color .stage-scroll,
+.b-game.is-picking-color .stage-scroll * { cursor: crosshair !important; }
+.b-game.is-picking-color .hide-paint-modal { opacity: .35; }
+.hide-pick-hint {
+  position: fixed;
+  z-index: 60;
+  top: 16px;
+  left: 50%;
+  padding: 10px 18px;
+  background: var(--ink);
+  box-shadow: 0 4px 0 rgba(42, 22, 80, .4);
+  color: var(--paper);
+  font-size: 16px;
+  font-weight: 800;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
 
 .hide-paint-panel {
   display: grid;
@@ -233,6 +251,8 @@
 .hide-paint-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
 
 /* 塗ったときの飛沫（表示だけ） */
+/* ステージ上で人型と同じ枠に重ねる入れ物。飛沫は枠からはみ出してよい */
+.hide-splash-layer { position: absolute; z-index: 3; overflow: visible; pointer-events: none; }
 .hide-paint-splash {
   position: absolute;
   z-index: 2;
@@ -381,6 +401,26 @@
 .hide-saved-figure { color: var(--hide); }
 
 /* ---- 狭い画面 ---- */
+
+/* ---- 塗るパネルを大きめに。パネル・文字・ボタン・色の四角をひと回り大きくする ---- */
+/* 高さは中身に合わせ、上のツールバーと帯（約170px）の下に収まる高さまでにする。はみ出す分はパネルの中でスクロール */
+.hide-paint-modal { width: min(560px, calc(100vw - 24px)); height: auto; max-height: calc(100dvh - 182px); }
+.hide-paint-panel { gap: 12px; padding: 10px 18px 16px; }
+.hide-paint-modal .b-tab { height: 42px; padding: 0 12px; font-size: 16px; }
+.hide-paint-modal .b-tab--icon { width: 48px; }
+.hide-paint-modal .b-tab svg { width: 22px; height: 22px; }
+.hide-paint-label,
+.hide-paint-size-value { font-size: 16px; }
+.hide-paint-modal .hide-color-picker h3 { font-size: 21px; }
+.hide-paint-modal .hide-color-hex,
+.hide-paint-modal .hide-color-hue { font-size: 15px; }
+.hide-paint-modal .hide-color-hex .b-input { height: 40px; font-size: 15px; }
+.hide-paint-modal .hide-color-preview { flex-basis: 34px; height: 34px; }
+/* 色の四角は、画面の高さが足りないときは小さくしてパネルが画面に収まるようにする */
+.hide-paint-modal .hide-color-spectrum { min-height: clamp(96px, calc(100dvh - 625px), 260px); }
+.hide-paint-modal .hide-color-cursor { width: 20px; height: 20px; }
+.hide-joint-help p,
+.hide-eraser-help { font-size: 15px; }
 
 @media (max-width: 760px) {
   .b-tools { padding: 10px 16px 12px; }

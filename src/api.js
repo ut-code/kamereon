@@ -18,8 +18,9 @@ export const api = {
   startGame: (site, exclude) => request('POST', '/api/games', { site, count: 5, exclude }),
   reportFound: (gameId, chameleonId, score, playerName) => request('POST', `/api/games/${gameId}/found`, { chameleonId, score, playerName }),
   reportHideScores: (gameId, hideScores) => request('POST', `/api/games/${gameId}/finish-hide-scores`, { hideScores }),
-  getFinderRanking: () => request('GET', '/api/rankings/finder'),
-  getHiderRanking: () => request('GET', '/api/rankings/hider'),
+  // period: 'all'（総合）か 'daily'（今日。日本時間の0時で切り替わる）
+  getFinderRanking: (period = 'all') => request('GET', `/api/rankings/finder?period=${period}`),
+  getHiderRanking: (period = 'all') => request('GET', `/api/rankings/hider?period=${period}`),
   stats: () => request('GET', '/api/stats'),
   usedNames: () => request('GET', '/api/names/used'),
 };
