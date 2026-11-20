@@ -443,6 +443,7 @@ export default function Hide({ siteId }) {
   const [carried, setCarried] = useState(null);
   const [outline, setOutline] = useState(true);
   const [name, setName] = useState(() => getRandomName("hide"));
+  const nameEdited = useRef(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   // 「ここに隠れる！」で名前入力を開いた時刻。開いている間は制限時間を止める（閉じたら止めた分だけ締切を延ばす）
   const [pausedAt, setPausedAt] = useState(null);
@@ -2113,7 +2114,7 @@ export default function Hide({ siteId }) {
             aria-label="カメレオンの名前"
             maxLength={20}
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => { nameEdited.current = true; setName(e.target.value); }}
             onFocus={(e) => {
               // 全部選択するのは最初にカーソルが入ったときだけ。日本語入力の途中でカーソルが入り直したと
               // 扱われる環境（Windows の Edge など）で、変換中の文字が選択されて消えたり確定したりしないようにする

@@ -293,6 +293,16 @@ export default function Find({ siteId }) {
   const [stageReady, setStageReady] = useState(false);
   const [phase, setPhase] = useState('intro'); // intro | starting | playing | over | empty
   const [playerName, setPlayerName] = useState(() => getRandomName("find"));
+  const nameEdited = useRef(false);
+
+useEffect(() => {
+  api.usedNames()
+    .then((used) => {
+      if (!nameEdited.current) setPlayerName(getRandomName("find", used.find));
+    })
+    .catch(() => {}); // 失敗しても、最初のランダムな名前のまま遊べる
+}, []);
+  
   const [game, setGame] = useState(null);
   const [found, setFound] = useState([]);
   const [deadline, setDeadline] = useState(0);
@@ -820,7 +830,7 @@ useEffect(() => {
     type="text"
     maxLength={20}
     value={playerName}
-    onChange={(e) => setPlayerName(e.target.value)}
+    onChange={(e) => { nameEdited.current = true; setPlayerName(e.target.value); }}
     onFocus={(e) => {
       // 全部選択するのは最初にカーソルが入ったときだけ。日本語入力の途中でカーソルが入り直したと
       // 扱われる環境（Windows の Edge など）で、変換中の文字が選択されて消えたり確定したりしないようにする
