@@ -433,6 +433,7 @@ export default function Hide({ siteId }) {
   const [carried, setCarried] = useState(null);
   const [outline, setOutline] = useState(true);
   const [name, setName] = useState(() => getRandomName("hide"));
+  const nameEdited = useRef(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState(null);
@@ -1946,20 +1947,7 @@ export default function Hide({ siteId }) {
               </>
             )}
           </p>
-          <input
-            type="text"
-            className="b-input hide-timeup-name"
-            aria-label="カメレオンの名前"
-            maxLength={20}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onFocus={(e) => e.target.select()}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && name.trim() && !saving) save();
-            }}
-            disabled={saving}
-            autoFocus
-          />
+          onChange={(e) => { nameEdited.current = true; setName(e.target.value); }}
           {error && (
             <p className="b-alert" role="alert">
               {error}

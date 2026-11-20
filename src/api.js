@@ -21,4 +21,5 @@ export const api = {
   getFinderRanking: () => request('GET', '/api/rankings/finder'),
   getHiderRanking: () => request('GET', '/api/rankings/hider'),
   stats: () => request('GET', '/api/stats'),
+  usedNames: () => request('GET', '/api/names/used'),
 };

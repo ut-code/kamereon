@@ -1,6 +1,6 @@
 import express from 'express';
 import { SITES } from './sites.js';
-
+import { HIDE_NAMES, FIND_NAMES } from '../src/userNames.js';
 const TIME_LIMIT_SEC = 180;
 const MAX_IMAGE_BYTES = 400_000;
 const GAME_CANDIDATES = 300; // 重ならない組み合わせを探すために、ランダムな順で読む候補の数
@@ -260,6 +260,29 @@ ORDER BY score DESC LIMIT 10
     ]);
     res.json({ ...results[0].results[0], games: results[1].results[0].n });
   }));
+
+  // 使用済みの名前（連番を除いた元の名前）を返す。ハンターとカメレオンは別リスト
+api.get('/names/used', route(async (req, res) => {
+  const [hide, find] = await db.batch([
+    db.prepare("SELECT DISTINCT name FROM chameleons"),
+    db.prepare("SELECT DISTINCT player_name AS name FROM games WHERE player_name IS NOT NULL AND player_name != ''"),
+  ]);
+  const base = (rows) => [...new Set(rows.results.map((r) => r.name.replace(/\d+$/, '')))];
+  res.json({ hide: base(hide), find: base(find) });
+}));
+// 運営用：リストの名前のうち、使われている数
+api.get('/names/usage', route(async (req, res) => {
+  const [hide, find] = await db.batch([
+    db.prepare("SELECT DISTINCT name FROM chameleons"),
+    db.prepare("SELECT DISTINCT player_name AS name FROM games WHERE player_name IS NOT NULL AND player_name != ''"),
+  ]);
+  const count = (list, rows) => {
+    const used = new Set(rows.results.map((r) => r.name.replace(/\d+$/, '')));
+    const n = list.filter((x) => used.has(x)).length;
+    return { used: n, total: list.length, remaining: list.length - n };
+  };
+  res.json({ hide: count(HIDE_NAMES, hide), find: count(FIND_NAMES, find) });
+}));
 
   api.use((req, res) => res.status(404).json({ error: 'not found' }));
   api.use((error, req, res, next) => {
