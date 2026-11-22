@@ -459,6 +459,19 @@ export default function Hide({ siteId }) {
   const [savedAt, setSavedAt] = useState(null);
   const [zoom, setZoom] = useState(1);
 
+  // 使用済みの候補を避ける。取得待ちの間に入力された名前は上書きしない。
+  useEffect(() => {
+    let cancelled = false;
+    api.usedNames()
+      .then((used) => {
+        if (!cancelled && !nameEdited.current) {
+          setName(getRandomName("hide", used.hide));
+        }
+      })
+      .catch(() => {}); // 取得に失敗した場合は最初の候補を使う。
+    return () => { cancelled = true; };
+  }, []);
+
   // ピンチ・Ctrl+ホイール
   useEffect(() => {
     const onWheel = (e) => {
